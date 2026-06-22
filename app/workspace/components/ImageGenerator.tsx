@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button, Input, Select, Card, Spin, message } from 'antd';
+import { addCreditRecord } from '@/lib/creditRecords';
 
 const { TextArea } = Input;
 
@@ -51,6 +52,17 @@ export default function ImageGenerator({
       if (data.success && data.imageUrl) {
         setImage(data.imageUrl);
         message.success('生成成功！');
+        const current = parseInt(localStorage.getItem('userCredits') || '150');
+  const newBalance = current - 1;
+  localStorage.setItem('userCredits', String(newBalance));
+
+  addCreditRecord(
+    'consume',
+    -1,
+    newBalance,
+    `生成图片（模型：${model}）`
+  );
+
         if (onGenerateSuccess) {
           onGenerateSuccess(data.imageUrl);
         }

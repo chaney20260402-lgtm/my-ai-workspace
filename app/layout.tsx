@@ -41,7 +41,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   // 判断是否在登录页面（未登录状态）
-  const isLoginPage = pathname === '/workspace' && !session;
+  const isLoginPage = pathname.startsWith('/workspace') && !session;
 
   // 如果是登录页面，直接渲染 children（无侧边栏）
   if (isLoginPage) {

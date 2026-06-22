@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Button, Typography, message, Modal } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
 import { addNotification } from '@/lib/notifications';
+import { addCreditRecord } from '@/lib/creditRecords';
 
 const { Title, Text } = Typography;
 
@@ -38,6 +39,12 @@ export default function PricingPage() {
       const current = parseInt(localStorage.getItem('userCredits') || '150');
       const newCredits = current + plan.credits;
       localStorage.setItem('userCredits', String(newCredits));
+      addCreditRecord(
+    'recharge',
+    plan.credits,
+    newCredits,
+    `充值套餐：${plan.name}，获得 ${plan.credits} 积分`
+  );
       setCredits(newCredits);
       message.success(`成功充值 ${plan.credits} 积分！当前积分：${newCredits}`);
       setLoading(false);
