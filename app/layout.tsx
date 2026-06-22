@@ -7,6 +7,7 @@ import { Badge, Space, Avatar, Dropdown, Menu, message } from 'antd';
 import { BellOutlined, UserOutlined } from '@ant-design/icons';
 import { signOut } from 'next-auth/react';
 import './globals.css';
+import NotificationDropdown from '@/app/workspace/components/NotificationDropdown';
 
 const menuItems = [
   { path: '/workspace', name: '首页' },
@@ -68,16 +69,14 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         );
       }}
       actionsRender={() => [
-        <Space key="user" size="middle">
-          <Badge count={5} size="small">
-            <BellOutlined style={{ fontSize: '20px', cursor: 'pointer' }} />
-          </Badge>
-          <span style={{ fontWeight: 'bold' }}>积分: 150</span>
-          <Dropdown overlay={userMenu} placement="bottomRight">
-            <Avatar icon={<UserOutlined />} style={{ cursor: 'pointer' }} />
-          </Dropdown>
-        </Space>,
-      ]}
+  <Space key="user" size="middle">
+    <NotificationDropdown />
+    <span style={{ fontWeight: 'bold' }}>积分: 150</span>
+    <Dropdown overlay={userMenu} placement="bottomRight">
+      <Avatar icon={<UserOutlined />} style={{ cursor: 'pointer' }} />
+    </Dropdown>
+  </Space>,
+]}
     >
       {children}
     </ProLayout>
