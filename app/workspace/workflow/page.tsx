@@ -13,7 +13,8 @@ interface Workflow {
   id: number;
   name: string;
   model: string;
-  size: string;
+  size: string;          // 1K, 2K, 4K
+  aspectRatio: string;   // 新增：16:9, 4:3, 1:1, 3:4, 9:16
   prompt: string;
   createdAt: string;
 }
@@ -33,12 +34,13 @@ export default function WorkflowPage() {
 
   const handleCreate = (values: any) => {
     const newWorkflow: Workflow = {
-      id: Date.now(),
-      name: values.name,
-      model: values.model,
-      size: values.size,
-      prompt: values.prompt,
-      createdAt: new Date().toISOString(),
+  id: Date.now(),
+  name: values.name,
+  model: values.model,
+  size: values.size,
+  aspectRatio: values.aspectRatio,  // 添加这一行
+  prompt: values.prompt,
+  createdAt: new Date().toISOString(),
     };
     const updated: Workflow[] = [...workflows, newWorkflow];
     setWorkflows(updated);
@@ -117,13 +119,22 @@ export default function WorkflowPage() {
               <Select.Option value="GPT Image 2">GPT Image 2</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="size" label="尺寸" rules={[{ required: true }]}>
+          <Form.Item name="size" label="分辨率" rules={[{ required: true }]}>
             <Select>
               <Select.Option value="1K">1K</Select.Option>
               <Select.Option value="2K">2K</Select.Option>
               <Select.Option value="4K">4K</Select.Option>
             </Select>
           </Form.Item>
+          <Form.Item name="aspectRatio" label="比例" rules={[{ required: true }]}>
+  <Select>
+    <Select.Option value="16:9">16:9 (宽屏)</Select.Option>
+    <Select.Option value="4:3">4:3 (传统)</Select.Option>
+    <Select.Option value="1:1">1:1 (方形)</Select.Option>
+    <Select.Option value="3:4">3:4 (竖屏)</Select.Option>
+    <Select.Option value="9:16">9:16 (手机竖屏)</Select.Option>
+  </Select>
+</Form.Item>
           <Form.Item name="prompt" label="提示词" rules={[{ required: true }]}>
             <TextArea rows={4} placeholder="描述你想要的画面" />
           </Form.Item>

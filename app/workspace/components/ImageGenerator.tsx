@@ -10,6 +10,7 @@ interface ImageGeneratorProps {
   initialPrompt?: string;
   initialModel?: string;
   initialSize?: string;
+  initialAspectRatio?: string;
   onGenerateSuccess?: (imageUrl: string) => void;
 }
 
@@ -17,6 +18,7 @@ export default function ImageGenerator({
   initialPrompt = '',
   initialModel = 'nano-banana',
   initialSize = '2K',
+  initialAspectRatio = '1:1',
   onGenerateSuccess,
 }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -24,11 +26,13 @@ export default function ImageGenerator({
   const [size, setSize] = useState(initialSize);
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState(initialAspectRatio);
 
   useEffect(() => {
     setPrompt(initialPrompt);
     setModel(initialModel);
     setSize(initialSize);
+    setAspectRatio(initialAspectRatio);
   }, [initialPrompt, initialModel, initialSize]);
 
   const handleGenerate = async () => {
@@ -44,7 +48,7 @@ export default function ImageGenerator({
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, model, size }),
+        body: JSON.stringify({ prompt, model, size,aspectRatio }),
       });
 
       const data = await response.json();
@@ -128,6 +132,18 @@ export default function ImageGenerator({
               { value: '4K', label: '4K' },
             ]}
           />
+          <Select
+  value={aspectRatio}
+  style={{ width: 120 }}
+  onChange={(value) => setAspectRatio(value)}
+  options={[
+    { value: '16:9', label: '16:9' },
+    { value: '4:3', label: '4:3' },
+    { value: '1:1', label: '1:1' },
+    { value: '3:4', label: '3:4' },
+    { value: '9:16', label: '9:16' },
+  ]}
+  />
         </div>
         <TextArea
           rows={4}
