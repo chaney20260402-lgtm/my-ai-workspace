@@ -17,6 +17,7 @@ import { ProLayout } from '@ant-design/pro-components';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import NotificationDropdown from './components/NotificationDropdown';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -250,9 +251,7 @@ useEffect(() => {
   }}
         actionsRender={() => [
           <Space key="user" size="middle">
-            <Badge count={5} size="small">
-              <BellOutlined style={{ fontSize: '20px', cursor: 'pointer' }} />
-            </Badge>
+            <NotificationDropdown />
             <span style={{ fontWeight: 'bold' }}>积分: {credits}</span>
             <Dropdown overlay={userMenu} placement="bottomRight">
               <Avatar icon={<UserOutlined />} style={{ cursor: 'pointer' }} />

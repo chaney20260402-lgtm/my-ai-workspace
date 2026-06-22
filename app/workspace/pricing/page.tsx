@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Button, Typography, message, Modal } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
+import { addNotification } from '@/lib/notifications';
 
 const { Title, Text } = Typography;
 
@@ -40,6 +41,11 @@ export default function PricingPage() {
       setCredits(newCredits);
       message.success(`成功充值 ${plan.credits} 积分！当前积分：${newCredits}`);
       setLoading(false);
+      addNotification(
+    '充值成功',
+    `您已成功充值 ${plan.credits} 积分，当前积分余额：${newCredits} 分。`,
+    'success'
+  );
     }, 1000);
   };
 
