@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState,useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Layout, Card, Tabs, Input, Button, message, Avatar, Dropdown, Menu,
   Typography, Divider, Checkbox, Space, Carousel, Badge, Select, Row, Col
@@ -18,12 +18,11 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import NotificationDropdown from './components/NotificationDropdown';
-const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
 const { Title, Text, Paragraph } = Typography;
 
 // ---------- 模拟数据 ----------
- const mockTemplates = [
+const mockTemplates = [
   { id: 1, name: '电商促销海报', category: '电商', image: '/templates/template1.png' },
   { id: 2, name: '产品详情页', category: '电商', image: '/templates/template2.png' },
   { id: 3, name: '社交媒体封面', category: '社交', image: '/templates/template3.png' },
@@ -59,10 +58,21 @@ export default function Workspace() {
   const [category, setCategory] = useState('全部');
   const [searchText, setSearchText] = useState('');
   const [credits, setCredits] = useState(150);
-useEffect(() => {
-  const saved = localStorage.getItem('userAvatar');
-  setAvatarUrl(saved);
-}, []);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null); // ✅ 移到这里
+
+  // 读取头像
+  useEffect(() => {
+    const saved = localStorage.getItem('userAvatar');
+    setAvatarUrl(saved);
+  }, []);
+
+  // 读取积分
+  useEffect(() => {
+    const saved = localStorage.getItem('userCredits');
+    if (saved) {
+      setCredits(parseInt(saved));
+    }
+  }, []);
 
   // 过滤模版
   const filteredTemplates = templates.filter(item => {
@@ -245,22 +255,21 @@ useEffect(() => {
         location={{ pathname }}
         route={{ routes: menuItems }}
         menuItemRender={(item, dom) => {
-    // 使用 Next.js Link 进行客户端导航
-    return <Link href={item.path || '#'}>{dom}</Link>;
-  }}
+          return <Link href={item.path || '#'}>{dom}</Link>;
+        }}
         actionsRender={() => [
-  <Space key="user" size="middle">
-    <NotificationDropdown />
-    <span style={{ fontWeight: 'bold' }}>积分: 150</span>
-    <Dropdown overlay={userMenu} placement="bottomRight">
-      <Avatar
-        src={avatarUrl || undefined}
-        icon={!avatarUrl ? <UserOutlined /> : undefined}
-        style={{ cursor: 'pointer' }}
-      />
-    </Dropdown>
-  </Space>,
-]}
+          <Space key="user" size="middle">
+            <NotificationDropdown />
+            <span style={{ fontWeight: 'bold' }}>积分: {credits}</span>
+            <Dropdown overlay={userMenu} placement="bottomRight">
+              <Avatar
+                src={avatarUrl || undefined}
+                icon={!avatarUrl ? <UserOutlined /> : undefined}
+                style={{ cursor: 'pointer' }}
+              />
+            </Dropdown>
+          </Space>,
+        ]}
       >
         <div style={{ padding: '24px' }}>
           {/* 搜索和分类 */}
@@ -292,11 +301,11 @@ useEffect(() => {
                   hoverable
                   cover={
                     <div style={{ height: 180, overflow: 'hidden' }}>
-            <img
-              src={template.image}
-              alt={template.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+                      <img
+                        src={template.image}
+                        alt={template.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
                     </div>
                   }
                   onClick={() => message.info(`选中模版：${template.name}`)}
