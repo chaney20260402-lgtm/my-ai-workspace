@@ -201,34 +201,52 @@ export default function GeneratePage() {
           />
         </Content>
 
-        {/* 🐱 皮卡丘奔跑动画占位（功能3暂留） */}
-        <div style={{ 
-          height: 60, 
-          background: '#f0f8ff', 
-          borderTop: '1px solid #e6e6e6',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 24px',
-          overflow: 'hidden',
-          position: 'relative'
-        }}>
-          <div style={{ 
-            animation: 'run 8s linear infinite',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}>
-            <span style={{ fontSize: 32 }}>⚡️</span>
-            <span style={{ fontSize: 28 }}>🐣</span>
-            <span style={{ fontSize: 20 }}>皮卡丘正在奔跑...</span>
-          </div>
-          <style>{`
-            @keyframes run {
-              0% { transform: translateX(-200px); }
-              100% { transform: translateX(calc(100vw - 200px)); }
-            }
-          `}</style>
-        </div>
+        {/* 🐱 皮卡丘奔跑动画 */}
+<div style={{
+  height: 80,
+  borderTop: '2px solid #388E3C',
+  display: 'flex',
+  alignItems: 'center',
+  padding: '0 24px',
+  overflow: 'hidden',
+  position: 'relative',
+  backgroundImage: 'linear-gradient(180deg, #66BB6A 0%, #4CAF50 30%, #388E3C 100%)',
+  backgroundSize: '100% 100%',
+}}>
+  {/* 草地 */}
+  <div style={{
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 20,
+    background: '#2E7D32',
+    borderRadius: '50% 50% 0 0 / 20px 20px 0 0',
+  }} />
+
+  {/* 奔跑的皮卡丘 */}
+  <div style={{
+    position: 'absolute',
+    bottom: 10,
+    animation: 'run 6s linear infinite',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 40,
+    zIndex: 10,
+  }}>
+    <span>⚡</span>
+    <span style={{ fontSize: 48 }}>🐣</span>
+  </div>
+
+  {/* 添加 CSS 动画 */}
+  <style>{`
+    @keyframes run {
+      0% { transform: translateX(-100px); }
+      100% { transform: translateX(calc(100vw - 100px)); }
+    }
+  `}</style>
+</div>
       </Layout>
     </Layout>
   );
