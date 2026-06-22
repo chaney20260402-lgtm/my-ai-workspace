@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@alicloud/sms-sdk": "^1.1.6",
     "@ant-design/pro-components": "^2.8.10",
     "@next-auth-oauth/wechatmp": "^0.2.5",
     "antd": "^5.29.3",
