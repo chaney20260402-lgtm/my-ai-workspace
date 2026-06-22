@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Input, Form, Select, Modal, List, message, Typography, Space } from 'antd';
-import { PlusOutlined, DeleteOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, PlayCircleOutlined, LeftOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 
 const { Title } = Typography;
@@ -20,7 +20,7 @@ interface Workflow {
 
 export default function WorkflowPage() {
   const router = useRouter();
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);  // ← 修复1：显式类型
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
 
@@ -31,7 +31,7 @@ export default function WorkflowPage() {
     }
   }, []);
 
-  const handleCreate = (values: any) => {  // ← 修复2：参数类型
+  const handleCreate = (values: any) => {
     const newWorkflow: Workflow = {
       id: Date.now(),
       name: values.name,
@@ -40,7 +40,7 @@ export default function WorkflowPage() {
       prompt: values.prompt,
       createdAt: new Date().toISOString(),
     };
-    const updated: Workflow[] = [...workflows, newWorkflow];  // ← 修复3：类型
+    const updated: Workflow[] = [...workflows, newWorkflow];
     setWorkflows(updated);
     localStorage.setItem('workflows', JSON.stringify(updated));
     message.success('工作流已创建');
@@ -48,22 +48,30 @@ export default function WorkflowPage() {
     form.resetFields();
   };
 
-  const handleDelete = (id: number) => {  // ← 修复4：参数类型
-    const updated: Workflow[] = workflows.filter((item: Workflow) => item.id !== id);  // ← 修复5：参数类型
+  const handleDelete = (id: number) => {
+    const updated: Workflow[] = workflows.filter((item: Workflow) => item.id !== id);
     setWorkflows(updated);
     localStorage.setItem('workflows', JSON.stringify(updated));
     message.success('已删除');
   };
 
-  const handleRun = (id: number) => {  // ← 修复6：参数类型
+  const handleRun = (id: number) => {
     router.push(`/workspace/generate?workflowId=${id}`);
   };
 
   return (
     <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <Title level={2}>我的工作流</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
+      {/* 返回按钮 + 标题行 */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+        <Button 
+          onClick={() => window.history.back()} 
+          style={{ marginRight: '12px' }}
+          icon={<LeftOutlined />}
+        >
+          返回
+        </Button>
+        <Title level={2} style={{ margin: 0 }}>我的工作流</Title>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)} style={{ marginLeft: 'auto' }}>
           创建工作流
         </Button>
       </div>
@@ -71,7 +79,7 @@ export default function WorkflowPage() {
       <List
         grid={{ gutter: 16, xs: 1, sm: 2, md: 3 }}
         dataSource={workflows}
-        renderItem={(item: Workflow) => (  // ← 修复7：参数类型
+        renderItem={(item: Workflow) => (
           <List.Item>
             <Card
               title={item.name}

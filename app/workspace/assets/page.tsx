@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Button, Empty, message, Typography, Space, Tag } from 'antd';
-import { DeleteOutlined, PictureOutlined, FileTextOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PictureOutlined, FileTextOutlined, LeftOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -66,10 +66,18 @@ export default function AssetsPage() {
 
   return (
     <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      {/* 返回按钮 + 标题行 */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+        <Button 
+          onClick={() => window.history.back()} 
+          style={{ marginRight: '12px' }}
+          icon={<LeftOutlined />}
+        >
+          返回
+        </Button>
         <Title level={2} style={{ margin: 0 }}>我的资产</Title>
         {assets.length > 0 && (
-          <Button danger onClick={handleClearAll}>
+          <Button danger onClick={handleClearAll} style={{ marginLeft: 'auto' }}>
             清空所有
           </Button>
         )}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Typography, Divider, Space, Avatar, Button, Row, Col, message, Tag, Table } from 'antd';
-import { UserOutlined, CheckOutlined } from '@ant-design/icons';
+import { UserOutlined, CheckOutlined, LeftOutlined } from '@ant-design/icons';
 import { useSession } from 'next-auth/react';
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
 import { getUserAvatar, setUserAvatar, getAvatarBySeed, avatarSeeds } from '@/lib/avatar';
@@ -19,7 +19,6 @@ export default function ProfilePage() {
     setRecords(getCreditRecords());
     const saved = getUserAvatar();
     setCurrentAvatar(saved);
-    // 找出当前使用的 seed（如果有）
     if (saved) {
       const match = avatarSeeds.find((seed) => saved.includes(seed));
       setSelectedSeed(match || null);
@@ -34,7 +33,6 @@ export default function ProfilePage() {
     message.success('头像已更换');
   };
 
-  // 积分记录表格列（同上）
   const columns = [
     {
       title: '时间',
@@ -79,6 +77,18 @@ export default function ProfilePage() {
 
   return (
     <div style={{ padding: '24px' }}>
+      {/* 返回按钮 + 标题行 */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+        <Button 
+          onClick={() => window.history.back()} 
+          style={{ marginRight: '12px' }}
+          icon={<LeftOutlined />}
+        >
+          返回
+        </Button>
+        <Title level={2} style={{ margin: 0 }}>个人中心</Title>
+      </div>
+
       <Card>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           {/* 用户信息 + 当前头像 */}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Button, Typography, message, Modal } from 'antd';
-import { CheckCircleOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, LeftOutlined } from '@ant-design/icons';
 import { addNotification } from '@/lib/notifications';
 import { addCreditRecord } from '@/lib/creditRecords';
 
@@ -17,16 +17,14 @@ const plans = [
 ];
 
 export default function PricingPage() {
-  const [credits, setCredits] = useState(150); // 默认值
+  const [credits, setCredits] = useState(150);
   const [loading, setLoading] = useState(false);
 
-  // 加载积分
   useEffect(() => {
     const saved = localStorage.getItem('userCredits');
     if (saved) {
       setCredits(parseInt(saved));
     } else {
-      // 首次访问，设置默认积分
       localStorage.setItem('userCredits', '150');
       setCredits(150);
     }
@@ -34,34 +32,42 @@ export default function PricingPage() {
 
   const handlePurchase = (plan: any) => {
     setLoading(true);
-    // 模拟支付过程
     setTimeout(() => {
       const current = parseInt(localStorage.getItem('userCredits') || '150');
       const newCredits = current + plan.credits;
       localStorage.setItem('userCredits', String(newCredits));
       addCreditRecord(
-    'recharge',
-    plan.credits,
-    newCredits,
-    `充值套餐：${plan.name}，获得 ${plan.credits} 积分`
-  );
+        'recharge',
+        plan.credits,
+        newCredits,
+        `充值套餐：${plan.name}，获得 ${plan.credits} 积分`
+      );
       setCredits(newCredits);
       message.success(`成功充值 ${plan.credits} 积分！当前积分：${newCredits}`);
       setLoading(false);
       addNotification(
-    '充值成功',
-    `您已成功充值 ${plan.credits} 积分，当前积分余额：${newCredits} 分。`,
-    'success'
-  );
+        '充值成功',
+        `您已成功充值 ${plan.credits} 积分，当前积分余额：${newCredits} 分。`,
+        'success'
+      );
     }, 1000);
   };
 
   return (
     <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <Title level={2}>价目表</Title>
-        <Text strong>当前积分：{credits}</Text>
+      {/* 返回按钮 + 标题行 */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+        <Button 
+          onClick={() => window.history.back()} 
+          style={{ marginRight: '12px' }}
+          icon={<LeftOutlined />}
+        >
+          返回
+        </Button>
+        <Title level={2} style={{ margin: 0 }}>价目表</Title>
+        <Text strong style={{ marginLeft: 'auto' }}>当前积分：{credits}</Text>
       </div>
+
       <Row gutter={[16, 16]} justify="center">
         {plans.map((plan) => (
           <Col key={plan.id} xs={24} sm={12} md={8} lg={6}>
