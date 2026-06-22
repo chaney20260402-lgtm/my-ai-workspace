@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import { SessionProvider, useSession } from "next-auth/react";
 import { ProLayout } from '@ant-design/pro-components';
 import { usePathname, useRouter } from 'next/navigation';
@@ -22,6 +23,12 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session, status } = useSession();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('userAvatar');
+    setAvatarUrl(saved);
+  }, []);
 
   const handleLogout = () => {
     signOut({ callbackUrl: '/workspace' });
@@ -69,14 +76,18 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         );
       }}
       actionsRender={() => [
-  <Space key="user" size="middle">
-    <NotificationDropdown />
-    <span style={{ fontWeight: 'bold' }}>积分: 150</span>
-    <Dropdown overlay={userMenu} placement="bottomRight">
-      <Avatar icon={<UserOutlined />} style={{ cursor: 'pointer' }} />
-    </Dropdown>
-  </Space>,
-]}
+        <Space key="user" size="middle">
+          <NotificationDropdown />
+          <span style={{ fontWeight: 'bold' }}>积分: 150</span>
+          <Dropdown overlay={userMenu} placement="bottomRight">
+            <Avatar
+              src={avatarUrl || undefined}
+              icon={!avatarUrl ? <UserOutlined /> : undefined}
+              style={{ cursor: 'pointer' }}
+            />
+          </Dropdown>
+        </Space>,
+      ]}
     >
       {children}
     </ProLayout>
