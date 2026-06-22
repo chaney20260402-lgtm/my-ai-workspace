@@ -297,22 +297,36 @@ export default function Workspace() {
           <Row gutter={[16, 16]}>
             {filteredTemplates.map((template) => (
               <Col key={template.id} xs={24} sm={12} md={8} lg={6}>
+                <Col xs={24} sm={12} md={8} lg={6}></Col>
                 <Card
                   hoverable
-                  cover={
-                    <div style={{ height: 180, overflow: 'hidden' }}>
-                      <img
-                        src={template.image}
-                        alt={template.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    </div>
-                  }
-                  onClick={() => message.info(`选中模版：${template.name}`)}
-                >
-                  <Card.Meta title={template.name} description={template.category} />
-                </Card>
-              </Col>
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        minHeight: 250,
+        border: '2px dashed #d9d9d9',
+        cursor: 'pointer',
+      }}
+      bodyStyle={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        height: '100%',
+      }}
+      onClick={() => {
+        router.push('/workspace/workflow');
+        // 注意：如果希望自动打开创建弹窗，需要通过 URL 参数或状态传递
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 48, color: '#1677ff' }}>+</div>
+        <div style={{ marginTop: 8, color: '#999' }}>创建工作流</div>
+      </div>
+    </Card>
+  </Col>
             ))}
           </Row>
         </div>
