@@ -18,6 +18,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import NotificationDropdown from './components/NotificationDropdown';
+const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -59,11 +60,9 @@ export default function Workspace() {
   const [searchText, setSearchText] = useState('');
   const [credits, setCredits] = useState(150);
 useEffect(() => {
-  const saved = localStorage.getItem('userCredits');
-  if (saved) {
-    setCredits(parseInt(saved));
-  }
-}, []);// 后续可从 localStorage 读取
+  const saved = localStorage.getItem('userAvatar');
+  setAvatarUrl(saved);
+}, []);
 
   // 过滤模版
   const filteredTemplates = templates.filter(item => {
@@ -250,14 +249,18 @@ useEffect(() => {
     return <Link href={item.path || '#'}>{dom}</Link>;
   }}
         actionsRender={() => [
-          <Space key="user" size="middle">
-            <NotificationDropdown />
-            <span style={{ fontWeight: 'bold' }}>积分: {credits}</span>
-            <Dropdown overlay={userMenu} placement="bottomRight">
-              <Avatar icon={<UserOutlined />} style={{ cursor: 'pointer' }} />
-            </Dropdown>
-          </Space>
-        ]}
+  <Space key="user" size="middle">
+    <NotificationDropdown />
+    <span style={{ fontWeight: 'bold' }}>积分: 150</span>
+    <Dropdown overlay={userMenu} placement="bottomRight">
+      <Avatar
+        src={avatarUrl || undefined}
+        icon={!avatarUrl ? <UserOutlined /> : undefined}
+        style={{ cursor: 'pointer' }}
+      />
+    </Dropdown>
+  </Space>,
+]}
       >
         <div style={{ padding: '24px' }}>
           {/* 搜索和分类 */}
