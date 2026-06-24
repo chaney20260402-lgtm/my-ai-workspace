@@ -2,11 +2,12 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { redis } from '@/lib/redis';
+import { getRedis } from '@/lib/redis';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const AlipaySdk = require('alipay-sdk');
+// ✅ V4 版本：使用解构赋值
+const { AlipaySdk } = require('alipay-sdk');
 
 const alipaySdk = new AlipaySdk({
   appId: process.env.ALIPAY_APP_ID!,
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '缺少参数' }, { status: 400 });
     }
 
-    // 存储订单到 Redis
+    const redis = getRedis();
     await redis.set(
       `order:${orderId}`,
       JSON.stringify({
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
         createdAt: Date.now(),
         type: type || 'recharge',
       }),
-      { ex: 86400 } // 24小时
+      { ex: 86400 }
     );
 
     const result = await alipaySdk.exec('alipay.trade.page.pay', {
@@ -55,9 +56,7 @@ export async function POST(request: Request) {
     });
 
     const payUrl = result?.url || result;
-    if (!payUrl) {
-      throw new Error('生成支付链接失败');
-    }
+    if (!payUrl) throw new Error('生成支付链接失败');
 
     return NextResponse.json({ success: true, payUrl });
   } catch (error) {

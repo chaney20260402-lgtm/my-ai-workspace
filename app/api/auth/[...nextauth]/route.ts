@@ -1,9 +1,8 @@
-// app/api/auth/[...nextauth]/route.ts
 import NextAuth, { type DefaultSession, type Session } from "next-auth";
 import { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { redis } from '@/lib/redis';
+import { getRedis } from '@/lib/redis';
 
 declare module "next-auth" {
   interface Session {
@@ -38,6 +37,7 @@ export const authOptions = {
           };
         }
         if (!credentials?.phone || !credentials?.code) return null;
+        const redis = getRedis();
         const storedCode = await redis.get(`sms:${credentials.phone}`);
         if (!storedCode) throw new Error("请先获取验证码");
         if (storedCode !== credentials.code) throw new Error("验证码错误");
