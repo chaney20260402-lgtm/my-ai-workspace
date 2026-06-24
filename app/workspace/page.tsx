@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Layout, Card, Tabs, Input, Button, message, Avatar, Dropdown, Menu,
-  Typography, Divider, Checkbox, Space, Carousel, Badge, Select, Row, Col
+  Typography, Divider, Checkbox, Space, Carousel, Badge, Select, Row, Col,
 } from 'antd';
 import {
   UserOutlined, AppstoreOutlined, HistoryOutlined, SettingOutlined,
@@ -19,15 +19,97 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import NotificationDropdown from './components/NotificationDropdown';
 
+import CreditDisplay from './components/CreditDisplay';
+
 const { Title, Text, Paragraph } = Typography;
+
 
 // ---------- 模拟数据 ----------
 const mockTemplates = [
-  { id: 1, name: '电商促销海报', category: '电商', image: '/templates/template1.png' },
-  { id: 2, name: '产品详情页', category: '电商', image: '/templates/template2.png' },
-  { id: 3, name: '社交媒体封面', category: '社交', image: '/templates/template3.png' },
-  { id: 4, name: '视频封面', category: '视频', image: '/templates/template4.png' },
-  { id: 5, name: '品牌宣传页', category: '品牌', image: '/templates/template5.png' },
+  { id: 1, name: '男装 夏季T恤', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth1/400/300' },
+  { id: 2, name: '女装 连衣裙', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth2/400/300' },
+  { id: 3, name: '女装 秋冬外套', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth3/400/300' },
+  { id: 4, name: '男装 休闲西装', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth4/400/300' },
+  { id: 5, name: '内衣 舒适家居服', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth5/400/300' },
+  { id: 6, name: '运动服饰 瑜伽服', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth6/400/300' },
+  { id: 7, name: '运动服饰 跑步鞋', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth7/400/300' },
+  { id: 8, name: '童装 儿童套装', category: '潮流服饰', image: 'https://picsum.photos/seed/cloth8/400/300' },
+
+  // 鞋靴箱包 (6)
+  { id: 9, name: '男鞋 商务皮鞋', category: '鞋靴箱包', image: 'https://picsum.photos/seed/shoe1/400/300' },
+  { id: 10, name: '女鞋 高跟鞋', category: '鞋靴箱包', image: 'https://picsum.photos/seed/shoe2/400/300' },
+  { id: 11, name: '童鞋 运动鞋', category: '鞋靴箱包', image: 'https://picsum.photos/seed/shoe3/400/300' },
+  { id: 12, name: '手提包 时尚女包', category: '鞋靴箱包', image: 'https://picsum.photos/seed/bag1/400/300' },
+  { id: 13, name: '钱包 男士钱包', category: '鞋靴箱包', image: 'https://picsum.photos/seed/bag2/400/300' },
+  { id: 14, name: '旅行箱 登机箱', category: '鞋靴箱包', image: 'https://picsum.photos/seed/bag3/400/300' },
+
+  // 数码家电 (8)
+  { id: 15, name: '手机 智能手机', category: '数码家电', image: 'https://picsum.photos/seed/elec1/400/300' },
+  { id: 16, name: '电脑 笔记本电脑', category: '数码家电', image: 'https://picsum.photos/seed/elec2/400/300' },
+  { id: 17, name: '相机 单反相机', category: '数码家电', image: 'https://picsum.photos/seed/elec3/400/300' },
+  { id: 18, name: '电视机 4K电视', category: '数码家电', image: 'https://picsum.photos/seed/elec4/400/300' },
+  { id: 19, name: '冰箱 双开门冰箱', category: '数码家电', image: 'https://picsum.photos/seed/elec5/400/300' },
+  { id: 20, name: '洗衣机 滚筒洗衣机', category: '数码家电', image: 'https://picsum.photos/seed/elec6/400/300' },
+  { id: 21, name: '平板电脑', category: '数码家电', image: 'https://picsum.photos/seed/elec7/400/300' },
+  { id: 22, name: '耳机 无线耳机', category: '数码家电', image: 'https://picsum.photos/seed/elec8/400/300' },
+
+  // 美妆个护 (6)
+  { id: 23, name: '护肤品 精华液', category: '美妆个护', image: 'https://picsum.photos/seed/beauty1/400/300' },
+  { id: 24, name: '护肤品 面霜', category: '美妆个护', image: 'https://picsum.photos/seed/beauty2/400/300' },
+  { id: 25, name: '彩妆 口红', category: '美妆个护', image: 'https://picsum.photos/seed/beauty3/400/300' },
+  { id: 26, name: '彩妆 粉底液', category: '美妆个护', image: 'https://picsum.photos/seed/beauty4/400/300' },
+  { id: 27, name: '香水 经典香水', category: '美妆个护', image: 'https://picsum.photos/seed/beauty5/400/300' },
+  { id: 28, name: '个人洗护 洗发水', category: '美妆个护', image: 'https://picsum.photos/seed/beauty6/400/300' },
+
+  // 珠宝首饰 (5)
+  { id: 29, name: '黄金 项链', category: '珠宝首饰', image: 'https://picsum.photos/seed/jewel1/400/300' },
+  { id: 30, name: '钻石 钻戒', category: '珠宝首饰', image: 'https://picsum.photos/seed/jewel2/400/300' },
+  { id: 31, name: '玉石 手镯', category: '珠宝首饰', image: 'https://picsum.photos/seed/jewel3/400/300' },
+  { id: 32, name: '手表 男士腕表', category: '珠宝首饰', image: 'https://picsum.photos/seed/jewel4/400/300' },
+  { id: 33, name: '饰品 耳环', category: '珠宝首饰', image: 'https://picsum.photos/seed/jewel5/400/300' },
+
+  // 母婴玩具 (4)
+  { id: 34, name: '奶粉 婴儿奶粉', category: '母婴玩具', image: 'https://picsum.photos/seed/baby1/400/300' },
+  { id: 35, name: '婴儿用品 婴儿车', category: '母婴玩具', image: 'https://picsum.photos/seed/baby2/400/300' },
+  { id: 36, name: '童装 婴儿连体衣', category: '母婴玩具', image: 'https://picsum.photos/seed/baby3/400/300' },
+  { id: 37, name: '玩具 儿童积木', category: '母婴玩具', image: 'https://picsum.photos/seed/baby4/400/300' },
+
+  // 食品酒饮 (6)
+  { id: 38, name: '零食 坚果礼盒', category: '食品酒饮', image: 'https://picsum.photos/seed/food1/400/300' },
+  { id: 39, name: '生鲜 水果礼盒', category: '食品酒饮', image: 'https://picsum.photos/seed/food2/400/300' },
+  { id: 40, name: '酒水 红酒', category: '食品酒饮', image: 'https://picsum.photos/seed/food3/400/300' },
+  { id: 41, name: '饮料 高端茶饮', category: '食品酒饮', image: 'https://picsum.photos/seed/food4/400/300' },
+  { id: 42, name: '保健品 维生素', category: '食品酒饮', image: 'https://picsum.photos/seed/food5/400/300' },
+  { id: 43, name: '特色美食 地方特产', category: '食品酒饮', image: 'https://picsum.photos/seed/food6/400/300' },
+
+  // 家居生活 (6)
+  { id: 44, name: '家具 简约沙发', category: '家居生活', image: 'https://picsum.photos/seed/home1/400/300' },
+  { id: 45, name: '家纺 床上四件套', category: '家居生活', image: 'https://picsum.photos/seed/home2/400/300' },
+  { id: 46, name: '厨具 不粘锅', category: '家居生活', image: 'https://picsum.photos/seed/home3/400/300' },
+  { id: 47, name: '日用品 收纳箱', category: '家居生活', image: 'https://picsum.photos/seed/home4/400/300' },
+  { id: 48, name: '家装建材 灯具', category: '家居生活', image: 'https://picsum.photos/seed/home5/400/300' },
+  { id: 49, name: '家居装饰 花瓶', category: '家居生活', image: 'https://picsum.photos/seed/home6/400/300' },
+
+  // 运动户外 (4)
+  { id: 50, name: '运动鞋服 冲锋衣', category: '运动户外', image: 'https://picsum.photos/seed/sport1/400/300' },
+  { id: 51, name: '健身器材 哑铃', category: '运动户外', image: 'https://picsum.photos/seed/sport2/400/300' },
+  { id: 52, name: '户外装备 帐篷', category: '运动户外', image: 'https://picsum.photos/seed/sport3/400/300' },
+  { id: 53, name: '运动护具 护膝', category: '运动户外', image: 'https://picsum.photos/seed/sport4/400/300' },
+
+  // 汽车用品 (3)
+  { id: 54, name: '汽车配件 轮胎', category: '汽车用品', image: 'https://picsum.photos/seed/car1/400/300' },
+  { id: 55, name: '车载电子产品 行车记录仪', category: '汽车用品', image: 'https://picsum.photos/seed/car2/400/300' },
+  { id: 56, name: '汽车养护品 机油', category: '汽车用品', image: 'https://picsum.photos/seed/car3/400/300' },
+
+  // 图书音像 (3)
+  { id: 57, name: '书籍 小说', category: '图书音像', image: 'https://picsum.photos/seed/book1/400/300' },
+  { id: 58, name: '书籍 技术类', category: '图书音像', image: 'https://picsum.photos/seed/book2/400/300' },
+  { id: 59, name: '音像制品 唱片', category: '图书音像', image: 'https://picsum.photos/seed/book3/400/300' },
+
+  // 虚拟商品 (3)
+  { id: 60, name: '游戏点卡 充值', category: '虚拟商品', image: 'https://picsum.photos/seed/virtual1/400/300' },
+  { id: 61, name: '软件 正版授权', category: '虚拟商品', image: 'https://picsum.photos/seed/virtual2/400/300' },
+  { id: 62, name: '数字内容 电子书', category: '虚拟商品', image: 'https://picsum.photos/seed/virtual3/400/300' },
 ];
 
 // 侧边栏菜单
@@ -58,7 +140,7 @@ export default function Workspace() {
   const [category, setCategory] = useState('全部');
   const [searchText, setSearchText] = useState('');
   const [credits, setCredits] = useState(150);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null); // ✅ 移到这里
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // 读取头像
   useEffect(() => {
@@ -244,95 +326,90 @@ export default function Workspace() {
 
   // ---------- 已登录：工作台（ProLayout） ----------
   if (session) {
-    return (
-      <ProLayout
-        title="Aguala"
-        logo={false}
-        layout="mix"
-        fixedHeader={true}
-        navTheme="light"
-        colorPrimary="#101011"
-        location={{ pathname }}
-        route={{ routes: menuItems }}
-        menuItemRender={(item, dom) => {
-          return <Link href={item.path || '#'}>{dom}</Link>;
-        }}
-        actionsRender={() => [
-          <Space key="user" size="middle">
-            <NotificationDropdown />
-            <span style={{ fontWeight: 'bold' }}>积分: {credits}</span>
-            <Dropdown overlay={userMenu} placement="bottomRight">
-              <Avatar
-                src={avatarUrl || undefined}
-                icon={!avatarUrl ? <UserOutlined /> : undefined}
-                style={{ cursor: 'pointer' }}
-              />
-            </Dropdown>
-          </Space>,
-        ]}
-      >
-        <div style={{ padding: '24px' }}>
-          {/* 搜索和分类 */}
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
-            <Select
-              defaultValue="全部"
-              style={{ width: 150 }}
-              onChange={(value) => setCategory(value)}
-            >
-              <Select.Option value="全部">全部</Select.Option>
-              <Select.Option value="电商">电商</Select.Option>
-              <Select.Option value="社交">社交</Select.Option>
-              <Select.Option value="视频">视频</Select.Option>
-              <Select.Option value="品牌">品牌</Select.Option>
-            </Select>
-            <Input.Search
-              placeholder="搜索模版名称"
-              allowClear
-              style={{ width: 250 }}
-              onSearch={(value) => setSearchText(value)}
+  return (
+    <ProLayout
+      title="Aguala"
+      logo={false}
+      layout="mix"
+      fixedHeader={true}
+      navTheme="light"
+      colorPrimary="#101011"
+      location={{ pathname }}
+      route={{ routes: menuItems }}
+      contentStyle={{ padding: 0 }}
+      menuItemRender={(item, dom) => {
+        return <Link href={item.path || '#'}>{dom}</Link>;
+      }}
+      actionsRender={() => [
+        <Space key="user" size="middle">
+          <NotificationDropdown />
+          <CreditDisplay /> 
+          <Dropdown overlay={userMenu} placement="bottomRight">
+            <Avatar
+              src={avatarUrl || undefined}
+              icon={!avatarUrl ? <UserOutlined /> : undefined}
+              style={{ cursor: 'pointer' }}
             />
-          </div>
-
-          {/* 模版列表 */}
-          <Row gutter={[16, 16]}>
-            {filteredTemplates.map((template) => (
-              <Col key={template.id} xs={24} sm={12} md={8} lg={6}>
-                <Col xs={24} sm={12} md={8} lg={6}></Col>
-                <Card
-                  hoverable
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        minHeight: 250,
-        border: '2px dashed #d9d9d9',
-        cursor: 'pointer',
-      }}
-      bodyStyle={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-        height: '100%',
-      }}
-      onClick={() => {
-        router.push('/workspace/workflow');
-        // 注意：如果希望自动打开创建弹窗，需要通过 URL 参数或状态传递
-      }}
+          </Dropdown>
+        </Space>,
+      ]}
     >
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 48, color: '#1677ff' }}>+</div>
-        <div style={{ marginTop: 8, color: '#999' }}>创建工作流</div>
-      </div>
-    </Card>
-  </Col>
-            ))}
-          </Row>
+      <div style={{ padding: '0px 0px 0px 0px' }}>
+        {/* 搜索和分类 */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+          <Select
+            defaultValue="全部"
+            style={{ width: 100 }}
+            onChange={(value) => setCategory(value)}
+          >
+            <Select.Option value="全部">全部</Select.Option>
+            <Select.Option value="潮流服饰">潮流服饰</Select.Option>
+            <Select.Option value="鞋靴箱包">鞋靴箱包</Select.Option>
+            <Select.Option value="数码家电">数码家电</Select.Option>
+            <Select.Option value="美妆个护">美妆个护</Select.Option>
+            <Select.Option value="珠宝首饰">珠宝首饰</Select.Option>
+            <Select.Option value="母婴玩具">母婴玩具</Select.Option>
+            <Select.Option value="食品酒饮">食品酒饮</Select.Option>
+            <Select.Option value="家居生活">家居生活</Select.Option>
+            <Select.Option value="运动户外">运动户外</Select.Option>
+            <Select.Option value="汽车用品">汽车用品</Select.Option>
+            <Select.Option value="图书音像">图书音像</Select.Option>
+            <Select.Option value="虚拟商品">虚拟商品</Select.Option>
+          </Select>
+          <Input.Search
+            placeholder="搜索模版名称"
+            allowClear
+            style={{ width: 250 }}
+            onSearch={(value) => setSearchText(value)}
+          />
         </div>
-      </ProLayout>
-    );
-  }
+
+        {/* 模版列表 */}
+        <Row gutter={[16, 16]}>
+          {filteredTemplates.map((template) => (
+            <Col key={template.id} xs={24} sm={12} md={8} lg={6}>
+              <Card
+                hoverable
+                cover={
+                  <div style={{ height: 180, overflow: 'hidden' }}>
+                    <img
+                      src={template.image}
+                      alt={template.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
+                }
+                onClick={() => message.info(`选中模版：${template.name}`)}
+              >
+                <Card.Meta title={template.name} description={template.category} />
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </div>
+    </ProLayout>
+  );
+}
 
   // ---------- 未登录 ----------
   return (

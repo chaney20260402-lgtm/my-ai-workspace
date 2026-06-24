@@ -12,12 +12,16 @@
     "@alicloud/sms-sdk": "^1.1.6",
     "@ant-design/pro-components": "^2.8.10",
     "@next-auth-oauth/wechatmp": "^0.2.5",
+    "@upstash/redis": "^1.38.0",
+    "alipay-sdk": "^4.14.0",
     "antd": "^5.29.3",
+    "fabric": "^5.5.2",
     "next": "^15.5.19",
     "next-auth": "^4.24.11",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "wechatpay-node-v3": "^2.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -51,15 +51,15 @@ export default function NotificationDropdown() {
   };
 
   const menu = (
-    <div style={{ width: 360, maxHeight: 400, overflowY: 'auto' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text strong>通知</Text>
-        {unreadCount > 0 && (
-          <Button type="link" size="small" onClick={markAllAsRead}>
-            全部已读
-          </Button>
-        )}
-      </div>
+    <div style={{ width: 360, maxHeight: 400, overflow: 'auto', background: '#fff', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+    <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Text strong>消息通知</Text>
+      {unreadCount > 0 && (
+        <Button type="link" size="small" onClick={markAllAsRead}>
+          全部已读
+        </Button>
+      )}
+    </div>
       {notifications.length === 0 ? (
         <Empty description="暂无通知" />
       ) : (
