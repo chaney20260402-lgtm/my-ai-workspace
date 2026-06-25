@@ -2,19 +2,31 @@
 import { getRedis } from '@/lib/redis';
 import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url);
-// ✅ V4 版本使用解构赋值
-const { AlipaySdk } = require('alipay-sdk');
+let alipaySdkInstance: any = null;
 
-const alipaySdk = new AlipaySdk({
-  appId: process.env.ALIPAY_APP_ID!,
-  gateway: process.env.ALIPAY_GATEWAY!,
-  privateKey: process.env.ALIPAY_PRIVATE_KEY!.replace(/\\n/g, '\n'),
-  alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY!.replace(/\\n/g, '\n'),
-});
+function getAlipaySdk() {
+  if (!alipaySdkInstance) {
+    const require = createRequire(import.meta.url);
+    const { AlipaySdk } = require('alipay-sdk');
+    const privateKey = process.env.ALIPAY_PRIVATE_KEY;
+    const publicKey = process.env.ALIPAY_PUBLIC_KEY;
+    if (!privateKey || !publicKey) {
+      throw new Error('支付宝密钥未配置');
+    }
+    alipaySdkInstance = new AlipaySdk({
+      appId: process.env.ALIPAY_APP_ID!,
+      gateway: process.env.ALIPAY_GATEWAY!,
+      privateKey: privateKey.replace(/\\n/g, '\n'),
+      alipayPublicKey: publicKey.replace(/\\n/g, '\n'),
+    });
+  }
+  return alipaySdkInstance;
+}
 
 export async function POST(request: Request) {
   try {
+    const alipaySdk = getAlipaySdk();
+
     // 1. 获取 Content-Type
     const contentType = request.headers.get('content-type') || '';
     console.log('📩 Content-Type:', contentType);
@@ -36,7 +48,6 @@ export async function POST(request: Request) {
     } else if (contentType.includes('application/json')) {
       params = await request.json();
     } else {
-      // 兜底：尝试作为 URLSearchParams 解析
       const text = await request.text();
       try {
         const searchParams = new URLSearchParams(text);
@@ -55,7 +66,7 @@ export async function POST(request: Request) {
 
     console.log('📋 解析后的参数:', params);
 
-    // 3. 验签（注释掉可临时跳过验签，仅用于测试）
+    // 3. 验签
     const verifyResult = alipaySdk.checkNotifySign(params);
     if (!verifyResult) {
       console.error('❌ 支付宝签名验证失败');
@@ -98,11 +109,10 @@ export async function POST(request: Request) {
       console.log(`✅ 用户 ${userId} 增加 ${creditsToAdd} 积分，当前 ${newCredits}`);
     }
 
-    // 9. 返回成功标识（支付宝要求返回 "success"）
+    // 9. 返回成功标识
     return new Response('success', { status: 200 });
   } catch (error) {
     console.error('❌ 支付回调处理失败:', error);
     return new Response('fail', { status: 200 });
   }
 }
-

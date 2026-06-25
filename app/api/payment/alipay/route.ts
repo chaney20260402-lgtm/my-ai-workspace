@@ -5,19 +5,30 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getRedis } from '@/lib/redis';
 import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url);
-// ✅ V4 版本：使用解构赋值
-const { AlipaySdk } = require('alipay-sdk');
+let alipaySdkInstance: any = null;
 
-const alipaySdk = new AlipaySdk({
-  appId: process.env.ALIPAY_APP_ID!,
-  gateway: process.env.ALIPAY_GATEWAY!,
-  privateKey: process.env.ALIPAY_PRIVATE_KEY!.replace(/\\n/g, '\n'),
-  alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY!.replace(/\\n/g, '\n'),
-});
+function getAlipaySdk() {
+  if (!alipaySdkInstance) {
+    const require = createRequire(import.meta.url);
+    const { AlipaySdk } = require('alipay-sdk');
+    const privateKey = process.env.ALIPAY_PRIVATE_KEY;
+    const publicKey = process.env.ALIPAY_PUBLIC_KEY;
+    if (!privateKey || !publicKey) {
+      throw new Error('支付宝密钥未配置');
+    }
+    alipaySdkInstance = new AlipaySdk({
+      appId: process.env.ALIPAY_APP_ID!,
+      gateway: process.env.ALIPAY_GATEWAY!,
+      privateKey: privateKey.replace(/\\n/g, '\n'),
+      alipayPublicKey: publicKey.replace(/\\n/g, '\n'),
+    });
+  }
+  return alipaySdkInstance;
+}
 
 export async function POST(request: Request) {
   try {
+    const alipaySdk = getAlipaySdk();
     const { orderId, amount, subject, credits, type } = await request.json();
 
     const session = await getServerSession(authOptions);
