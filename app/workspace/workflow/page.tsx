@@ -98,16 +98,18 @@ export default function WorkflowPage() {
         {workflows.map((item) => (
           <Col key={item.id} xs={24} sm={12} md={8} lg={6}>
             <Card
+              hoverable
+              onClick={() => handleRun(item.id)}
               title={
                 <span style={{ fontSize: 15, fontWeight: 600 }}>{item.name}</span>
               }
               extra={
-                <Space size={4}>
+                <Space size={4} onClick={(e) => e.stopPropagation()}>
                   <Button
                     type="text"
                     size="small"
                     icon={<PlayCircleOutlined />}
-                    onClick={() => handleRun(item.id)}
+                    onClick={(e) => { e.stopPropagation(); handleRun(item.id); }}
                     style={{ color: '#1677ff' }}
                   />
                   <Button
@@ -115,7 +117,7 @@ export default function WorkflowPage() {
                     size="small"
                     danger
                     icon={<DeleteOutlined />}
-                    onClick={() => handleDelete(item.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
                   />
                 </Space>
               }
@@ -126,6 +128,7 @@ export default function WorkflowPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                 transition: 'all 0.3s',
+                cursor: 'pointer',
               }}
               bodyStyle={{
                 flex: 1,

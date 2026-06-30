@@ -214,180 +214,203 @@ export default function Workspace() {
   }, []);
 
   // ---------- 螺旋星系（一圈圈星云） ----------
-  useEffect(() => {
-    const canvas = nebulaCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // ---------- 螺旋星系（一圈圈星云） ----------
+useEffect(() => {
+  const canvas = nebulaCanvasRef.current;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
 
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
+  let width = window.innerWidth;
+  let height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
 
-    // 银河中心位置：屏幕右侧外部（略微左移，增加覆盖）
-    const centerX = width * 1.1;
-    const centerY = height * 0.5;
+  // 星云中心位置（初始默认值，后续根据卡片位置更新）
+  let centerX = width * 0.85;
+  let centerY = height * 0.5;
 
-    // 旋臂数量
-    const armCount = 4;
-    // 每条旋臂粒子数（增加密度）
-    const particlesPerArm = 2000;
-    // 星云尘埃粒子数
-    const dustCount = 1200;
-
-    const particles: {
-      radius: number;
-      angle: number;
-      armIndex: number;
-      offset: number;
-      size: number;
-      hue: number;
-      brightness: number;
-      alpha: number;
-      isDust: boolean;
-    }[] = [];
-
-    // 生成旋臂粒子（半径范围扩展到 1500）
-    for (let arm = 0; arm < armCount; arm++) {
-      const armAngleOffset = (arm / armCount) * Math.PI * 2;
-      for (let i = 0; i < particlesPerArm; i++) {
-        const t = i / particlesPerArm;
-        const radius = 40 + t * t * 1460; // 最大半径 1500
-        const spiralAngle = radius * 0.02;
-        const randomOffset = (Math.random() - 0.5) * (40 + t * 80);
-        const angle = armAngleOffset + spiralAngle + randomOffset / radius;
-        const size = 0.5 + (1 - t) * 2.8 + Math.random() * 0.8;
-        const hue = 40 + t * 200;
-        const brightness = 60 + (1 - t) * 50;
-        const alpha = 0.5 + Math.random() * 0.5;
-        particles.push({
-          radius,
-          angle,
-          armIndex: arm,
-          offset: randomOffset,
-          size,
-          hue,
-          brightness,
-          alpha,
-          isDust: false,
-        });
-      }
+  // 更新星云中心位置，使其对齐卡片右侧
+  const updateCenter = () => {
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      // 卡片右侧 + 150px 偏移（可根据需要调整）
+      centerX = rect.left + rect.width + 150;
+      centerY = rect.top + rect.height / 2;
+    } else {
+      // 后备方案：屏幕右侧 85% 位置
+      centerX = window.innerWidth * 0.85;
+      centerY = window.innerHeight * 0.5;
     }
+  };
 
-    // 生成星云尘埃（分布在旋臂之间）
-    for (let i = 0; i < dustCount; i++) {
-      const radius = 100 + Math.random() * 1300;
-      const angle = Math.random() * Math.PI * 2;
-      const size = 4 + Math.random() * 12;
-      const hue = 200 + Math.random() * 60;
-      const brightness = 25 + Math.random() * 40;
+  // 初次计算
+  updateCenter();
+
+  // 旋臂数量
+  const armCount = 4;
+  const particlesPerArm = 2000;
+  const dustCount = 1200;
+
+  const particles: {
+    radius: number;
+    angle: number;
+    armIndex: number;
+    offset: number;
+    size: number;
+    hue: number;
+    brightness: number;
+    alpha: number;
+    isDust: boolean;
+  }[] = [];
+
+  // 生成旋臂粒子（半径范围适当缩小，以适应屏幕）
+  for (let arm = 0; arm < armCount; arm++) {
+    const armAngleOffset = (arm / armCount) * Math.PI * 2;
+    for (let i = 0; i < particlesPerArm; i++) {
+      const t = i / particlesPerArm;
+      const radius = 40 + t * t * 800; // 最大半径 840（可根据视觉效果调整）
+      const spiralAngle = radius * 0.025;
+      const randomOffset = (Math.random() - 0.5) * (40 + t * 60);
+      const angle = armAngleOffset + spiralAngle + randomOffset / radius;
+      const size = 0.5 + (1 - t) * 2.5 + Math.random() * 0.8;
+      const hue = 40 + t * 200;
+      const brightness = 60 + (1 - t) * 50;
+      const alpha = 0.5 + Math.random() * 0.5;
       particles.push({
         radius,
         angle,
-        armIndex: -1,
-        offset: 0,
+        armIndex: arm,
+        offset: randomOffset,
         size,
         hue,
         brightness,
-        alpha: 0.12 + Math.random() * 0.2,
-        isDust: true,
+        alpha,
+        isDust: false,
       });
     }
+  }
+
+  // 生成星云尘埃
+  for (let i = 0; i < dustCount; i++) {
+    const radius = 100 + Math.random() * 700;
+    const angle = Math.random() * Math.PI * 2;
+    const size = 4 + Math.random() * 10;
+    const hue = 200 + Math.random() * 60;
+    const brightness = 25 + Math.random() * 40;
+    particles.push({
+      radius,
+      angle,
+      armIndex: -1,
+      offset: 0,
+      size,
+      hue,
+      brightness,
+      alpha: 0.12 + Math.random() * 0.2,
+      isDust: true,
+    });
+  }
+
+  // 背景星点
+  const stars: { x: number; y: number; size: number; alpha: number; twinkleSpeed: number }[] = [];
+  for (let i = 0; i < 1500; i++) {
+    stars.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: Math.random() * 1.5 + 0.5,
+      alpha: 0.2 + Math.random() * 0.6,
+      twinkleSpeed: 0.005 + Math.random() * 0.02,
+    });
+  }
+
+  let rotation = 0;
+  let time = 0;
+
+  const animate = () => {
+    ctx.clearRect(0, 0, width, height);
+
     // 背景星点
-    const stars: { x: number; y: number; size: number; alpha: number; twinkleSpeed: number }[] = [];
-    for (let i = 0; i < 1500; i++) {
-      stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        size: Math.random() * 1.5 + 0.5,
-        alpha: 0.2 + Math.random() * 0.6,
-        twinkleSpeed: 0.005 + Math.random() * 0.02,
-      });
+    time += 0.02;
+    for (const star of stars) {
+      const alpha = star.alpha + Math.sin(time * star.twinkleSpeed) * 0.2;
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, Math.min(1, alpha))})`;
+      ctx.fill();
     }
 
-    let rotation = 0;
-    let time = 0;
+    // 星云光晕（使用当前中心）
+    const grad = ctx.createRadialGradient(
+      centerX, centerY, 0,
+      centerX, centerY, 700
+    );
+    grad.addColorStop(0, 'rgba(255, 230, 200, 0.05)');
+    grad.addColorStop(0.3, 'rgba(200, 160, 255, 0.04)');
+    grad.addColorStop(0.7, 'rgba(100, 100, 255, 0.02)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
 
-    const animate = () => {
-      ctx.clearRect(0, 0, width, height);
+    rotation += 0.00015;
 
-      // 1. 绘制背景星点
-      time += 0.02;
-      for (const star of stars) {
-        const alpha = star.alpha + Math.sin(time * star.twinkleSpeed) * 0.2;
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, Math.min(1, alpha))})`;
-        ctx.fill();
-      }
+    // 绘制尘埃
+    for (const p of particles) {
+      if (!p.isDust) continue;
+      const currentAngle = p.angle + rotation * 0.8;
+      const x = Math.cos(currentAngle) * p.radius + centerX;
+      const y = Math.sin(currentAngle) * p.radius + centerY;
+      if (x < 0 || x > width || y < 0 || y > height) continue;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue}, 60%, ${p.brightness}%, ${p.alpha})`;
+      ctx.fill();
+    }
 
-      // 2. 绘制星云光晕
-      const grad = ctx.createRadialGradient(
-        centerX, centerY, 0,
-        centerX, centerY, 700
-      );
-      grad.addColorStop(0, 'rgba(255, 230, 200, 0.05)');
-      grad.addColorStop(0.3, 'rgba(200, 160, 255, 0.04)');
-      grad.addColorStop(0.7, 'rgba(100, 100, 255, 0.02)');
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, width, height);
+    // 绘制旋臂粒子
+    for (const p of particles) {
+      if (p.isDust) continue;
+      const currentAngle = p.angle + rotation * 1.0;
+      const x = Math.cos(currentAngle) * p.radius + centerX;
+      const y = Math.sin(currentAngle) * p.radius + centerY;
+      if (x < 0 || x > width || y < 0 || y > height) continue;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue}, 85%, ${p.brightness}%, ${p.alpha})`;
+      ctx.fill();
+    }
 
-      // 3. 绘制星云尘埃（大粒子，半透明）
-      rotation += 0.00015;
-      for (const p of particles) {
-        if (!p.isDust) continue;
-        const currentAngle = p.angle + rotation * 0.8;
-        const x = Math.cos(currentAngle) * p.radius + centerX;
-        const y = Math.sin(currentAngle) * p.radius + centerY;
-        if (x < 0 || x > width || y < 0 || y > height) continue;
-        ctx.beginPath();
-        ctx.arc(x, y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${p.hue}, 60%, ${p.brightness}%, ${p.alpha})`;
-        ctx.fill();
-      }
+    // 核心星团
+    for (let i = 0; i < 300; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 60;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      const bright = 180 + Math.random() * 75;
+      const size = Math.random() * 3 + 1;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(40, 100%, ${bright}%, 0.9)`;
+      ctx.fill();
+    }
 
-      // 4. 绘制旋臂粒子（核心）
-      for (const p of particles) {
-        if (p.isDust) continue;
-        const currentAngle = p.angle + rotation * 1.0;
-        const x = Math.cos(currentAngle) * p.radius + centerX;
-        const y = Math.sin(currentAngle) * p.radius + centerY;
-        if (x < 0 || x > width || y < 0 || y > height) continue;
-        ctx.beginPath();
-        ctx.arc(x, y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${p.hue}, 85%, ${p.brightness}%, ${p.alpha})`;
-        ctx.fill();
-      }
+    requestAnimationFrame(animate);
+  };
+  animate();
 
-      // 5. 绘制星系核心（密集光团）
-      for (let i = 0; i < 300; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = Math.random() * 60;
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-        const bright = 180 + Math.random() * 75;
-        const size = Math.random() * 3 + 1;
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(40, 100%, ${bright}%, 0.9)`;
-        ctx.fill();
-      }
+  // 监听窗口大小变化并更新中心位置
+  const handleResize = () => {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    updateCenter();
+  };
+  window.addEventListener('resize', handleResize);
 
-      requestAnimationFrame(animate);
-    };
-    animate();
-
-    const handleResize = () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  return () => {
+    window.removeEventListener('resize', handleResize);
+  };
+}, [cardRef]); // 注意：将 cardRef 加入依赖，以便 ref 变化时重新执行（但 ref 变化不触发，实际靠 resize 更新）
 
   // ---------- 计算卡片偏移 ----------
   useEffect(() => {

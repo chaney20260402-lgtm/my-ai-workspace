@@ -5,6 +5,52 @@ import { checkAndDeductCredits } from '@/lib/credits';
 
 export const maxDuration = 60;
 
+// ========== 平台列表 ==========
+const PLATFORMS = [
+  { value: 'taobao', label: '淘宝' },
+  { value: 'jd', label: '京东' },
+  { value: 'pinduoduo', label: '拼多多' },
+  { value: 'tmall', label: '天猫' },
+  { value: 'suning', label: '苏宁' },
+  { value: 'amazon', label: 'Amazon' },
+  { value: 'ebay', label: 'eBay' },
+  { value: 'aliexpress', label: 'AliExpress' },
+  { value: 'shopify', label: 'Shopify' },
+  { value: 'walmart', label: 'Walmart' },
+  { value: 'etsy', label: 'Etsy' },
+  { value: 'mercadolibre', label: 'MercadoLibre' },
+  { value: 'rakuten', label: 'Rakuten' },
+  { value: 'coupang', label: 'Coupang' },
+  { value: 'lazada', label: 'Lazada' },
+  { value: 'shopee', label: 'Shopee' },
+  { value: 'temu', label: 'Temu' },
+  { value: 'shein', label: 'Shein' },
+];
+
+// ========== 语言列表 ==========
+const LANGUAGES = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+  { value: 'fr', label: 'Français' },
+  { value: 'de', label: 'Deutsch' },
+  { value: 'es', label: 'Español' },
+  { value: 'pt', label: 'Português' },
+  { value: 'ru', label: 'Русский' },
+  { value: 'ar', label: 'العربية' },
+  { value: 'hi', label: 'हिन्दी' },
+  { value: 'it', label: 'Italiano' },
+  { value: 'nl', label: 'Nederlands' },
+  { value: 'sv', label: 'Svenska' },
+  { value: 'pl', label: 'Polski' },
+  { value: 'tr', label: 'Türkçe' },
+  { value: 'vi', label: 'Tiếng Việt' },
+  { value: 'th', label: 'ไทย' },
+  { value: 'id', label: 'Bahasa Indonesia' },
+  { value: 'ms', label: 'Bahasa Melayu' },
+];
+
 // ========== 尺寸预设 ==========
 const sizePresets: Record<string, string> = {
   '1K': '1024x1024',
@@ -21,7 +67,26 @@ const aspectRatioToSize: Record<string, { width: number; height: number }> = {
   '9:16': { width: 9, height: 16 },
 };
 
-// ========== 模型配置表（保持不变） ==========
+// ========== 辅助函数：构建增强提示词 ==========
+function buildEnhancedPrompt(
+  originalPrompt: string,
+  platform?: string,
+  language?: string
+): string {
+  let enhanced = originalPrompt;
+  const platformLabel = PLATFORMS.find(p => p.value === platform)?.label;
+  const languageLabel = LANGUAGES.find(l => l.value === language)?.label;
+
+  if (platformLabel) {
+    enhanced = `【电商平台：${platformLabel}】${enhanced}`;
+  }
+  if (languageLabel) {
+    enhanced = `【语言：${languageLabel}】${enhanced}`;
+  }
+  return enhanced;
+}
+
+// ========== 模型配置表 ==========
 const modelConfigs: Record<string, any> = {
   // ---------- Gemini 格式 ----------
   'nanobanana-pro': {
@@ -198,8 +263,17 @@ const modelConfigs: Record<string, any> = {
 // ========== POST 处理 ==========
 export async function POST(request: Request) {
   try {
-    // 1. 获取请求参数
-    const { prompt, model, size, aspectRatio, quantity = 1 } = await request.json();
+    // 1. 获取请求参数（新增 platform, language, referenceImage）
+    const {
+      prompt,
+      model,
+      size,
+      aspectRatio,
+      quantity = 1,
+      platform,
+      language,
+      referenceImage,
+    } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: '请输入描述词' }, { status: 400 });
@@ -221,9 +295,7 @@ export async function POST(request: Request) {
     const isDev = process.env.NODE_ENV === 'development';
     if (isDev) {
       console.log(`⚠️ 开发模式：跳过实际积分扣除，假装消耗 ${totalCost} 积分`);
-      // 模拟扣除后的余额（假设原余额为 100，扣除后为 100 - totalCost）
-      newCredits = 100 - totalCost; // 仅用于前端展示，实际未修改数据库
-      // 如果你希望真实扣除，可以注释掉上面的 if，或者设置环境变量强制扣除
+      newCredits = 100 - totalCost;
     } else {
       try {
         newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);
@@ -238,7 +310,16 @@ export async function POST(request: Request) {
 
     console.log(`💰 当前剩余积分: ${newCredits}`);
 
-    // 4. 检查模型配置
+    // 4. 构建增强提示词（将平台、语言信息嵌入）
+    const enhancedPrompt = buildEnhancedPrompt(prompt, platform, language);
+    console.log(`📝 增强后提示词: ${enhancedPrompt.substring(0, 150)}...`);
+
+    // 5. 处理参考图（当前模型暂不支持，仅记录）
+    if (referenceImage) {
+      console.log(`📎 收到参考图，长度: ${referenceImage.substring(0, 50)}...（当前模型暂不支持图生图）`);
+    }
+
+    // 6. 检查模型配置
     const config = modelConfigs[model];
     if (!config) {
       return NextResponse.json({ error: '不支持的模型' }, { status: 400 });
@@ -250,8 +331,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '服务器配置错误' }, { status: 500 });
     }
 
-    // 5. 调用 API
-    const payload = config.buildPayload(prompt, size, aspectRatio);
+    // 7. 调用 API（使用增强后的提示词）
+    const payload = config.buildPayload(enhancedPrompt, size, aspectRatio);
     console.log(`📤 调用模型: ${model}, 尺寸: ${size}, 比例: ${aspectRatio}`);
 
     const controller = new AbortController();
@@ -262,7 +343,7 @@ export async function POST(request: Request) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${APIYI_KEY}`,
+          Authorization: `Bearer ${APIYI_KEY}`,
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
@@ -293,7 +374,6 @@ export async function POST(request: Request) {
         imageUrl,
         credits: newCredits,
       });
-
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       if (fetchError.name === 'AbortError') {

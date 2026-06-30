@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage } from 'antd';
-import { DeleteOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage, List, Tag, Space, Upload } from 'antd';
+import { DeleteOutlined, FilePdfOutlined, HistoryOutlined, PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import JSZip from 'jszip';
-import { useCredits } from '@/app/contexts/CreditsContext';  // ← 导入积分 Hook
+import { useCredits } from '@/app/contexts/CreditsContext';
 
 const { TextArea } = Input;
 
@@ -13,7 +13,10 @@ interface ImageGeneratorProps {
   initialModel?: string;
   initialSize?: string;
   initialAspectRatio?: string;
+  initialImages?: GeneratedImage[];                        // 新增：初始图片列表
   onGenerateSuccess?: (imageUrl: string) => void;
+  onPromptChange?: (prompt: string) => void;
+  onImagesChange?: (images: GeneratedImage[]) => void;     // 新增：图片列表变化回调
 }
 
 interface GeneratedImage {
@@ -21,7 +24,65 @@ interface GeneratedImage {
   url: string;
   prompt: string;
   loading: boolean;
+  platform: string;
+  language: string;
+  referenceImages?: string[];
 }
+
+interface HistoryRecord {
+  id: string;
+  prompt: string;
+  platform: string;
+  language: string;
+  imageUrl: string;
+  createdAt: number;
+}
+
+// ---------- 平台列表 ----------
+const PLATFORMS = [
+  { value: 'taobao', label: '淘宝' },
+  { value: 'jd', label: '京东' },
+  { value: 'pinduoduo', label: '拼多多' },
+  { value: 'tmall', label: '天猫' },
+  { value: 'suning', label: '苏宁' },
+  { value: 'amazon', label: 'Amazon' },
+  { value: 'ebay', label: 'eBay' },
+  { value: 'aliexpress', label: 'AliExpress' },
+  { value: 'shopify', label: 'Shopify' },
+  { value: 'walmart', label: 'Walmart' },
+  { value: 'etsy', label: 'Etsy' },
+  { value: 'mercadolibre', label: 'MercadoLibre' },
+  { value: 'rakuten', label: 'Rakuten' },
+  { value: 'coupang', label: 'Coupang' },
+  { value: 'lazada', label: 'Lazada' },
+  { value: 'shopee', label: 'Shopee' },
+  { value: 'temu', label: 'Temu' },
+  { value: 'shein', label: 'Shein' },
+];
+
+// ---------- 语言列表 ----------
+const LANGUAGES = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+  { value: 'fr', label: 'Français' },
+  { value: 'de', label: 'Deutsch' },
+  { value: 'es', label: 'Español' },
+  { value: 'pt', label: 'Português' },
+  { value: 'ru', label: 'Русский' },
+  { value: 'ar', label: 'العربية' },
+  { value: 'hi', label: 'हिन्दी' },
+  { value: 'it', label: 'Italiano' },
+  { value: 'nl', label: 'Nederlands' },
+  { value: 'sv', label: 'Svenska' },
+  { value: 'pl', label: 'Polski' },
+  { value: 'tr', label: 'Türkçe' },
+  { value: 'vi', label: 'Tiếng Việt' },
+  { value: 'th', label: 'ไทย' },
+  { value: 'id', label: 'Bahasa Indonesia' },
+  { value: 'ms', label: 'Bahasa Melayu' },
+];
 
 const modelOptions = [
   { value: 'nanobanana-pro', label: '🍌 Nano Banana Pro' },
@@ -43,110 +104,237 @@ export default function ImageGenerator({
   initialModel = 'nanobanana-pro',
   initialSize = '2K',
   initialAspectRatio = '1:1',
+  initialImages = [],
   onGenerateSuccess,
+  onPromptChange,
+  onImagesChange,
 }: ImageGeneratorProps) {
-  const { setCredits } = useCredits();  // ← 获取更新积分的方法
+  const { setCredits } = useCredits();
 
-  const [prompt, setPrompt] = useState(initialPrompt);
   const [model, setModel] = useState(initialModel);
   const [size, setSize] = useState(initialSize);
   const [aspectRatio, setAspectRatio] = useState(initialAspectRatio);
+  const [platform, setPlatform] = useState('taobao');
+  const [language, setLanguage] = useState('zh');
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  
   const [quantity, setQuantity] = useState(1);
+  const [prompts, setPrompts] = useState<string[]>([initialPrompt || '']);
+  
   const [loading, setLoading] = useState(false);
-  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>(initialImages);
+  const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(true);
 
+  // 当数量变化时，调整prompts数组长度
   useEffect(() => {
-    setPrompt(initialPrompt);
-    setModel(initialModel);
-    setSize(initialSize);
-    setAspectRatio(initialAspectRatio);
-  }, [initialPrompt, initialModel, initialSize, initialAspectRatio]);
+    setPrompts(prev => {
+      const newPrompts = [...prev];
+      while (newPrompts.length < quantity) {
+        newPrompts.push('');
+      }
+      return newPrompts.slice(0, quantity);
+    });
+  }, [quantity]);
 
-  // ---------- 生成图片 ----------
-  const handleGenerate = async () => {
-    console.log('🔵 生成按钮被点击');
-    if (!prompt.trim()) {
-      message.warning('请输入描述词');
+  // 当 initialPrompt 变化时，更新第一个提示词
+  useEffect(() => {
+    if (initialPrompt && prompts[0] !== initialPrompt) {
+      setPrompts(prev => {
+        const newPrompts = [...prev];
+        newPrompts[0] = initialPrompt;
+        return newPrompts;
+      });
+    }
+  }, [initialPrompt]);
+
+  // 提示词变化时通知父组件
+  useEffect(() => {
+    if (onPromptChange && prompts.length > 0 && prompts[0] !== undefined) {
+      onPromptChange(prompts[0]);
+    }
+  }, [prompts, onPromptChange]);
+
+  // 加载历史（全局历史，与工作流无关）
+  useEffect(() => {
+    const saved = localStorage.getItem('image_generator_history');
+    if (saved) {
+      try {
+        setHistory(JSON.parse(saved));
+      } catch (e) {
+        console.error('读取历史失败', e);
+      }
+    }
+  }, []);
+
+  const saveHistory = (record: HistoryRecord) => {
+    const updated = [record, ...history];
+    setHistory(updated);
+    localStorage.setItem('image_generator_history', JSON.stringify(updated));
+  };
+
+  // 更新提示词
+  const updatePrompt = (index: number, value: string) => {
+    setPrompts(prev => {
+      const newPrompts = [...prev];
+      newPrompts[index] = value;
+      return newPrompts;
+    });
+  };
+
+  // 参考图上传
+  const handleRefUpload = (file: File) => {
+    if (referenceImages.length >= 8) {
+      message.warning('最多上传8张参考图');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setReferenceImages(prev => [...prev, e.target?.result as string]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeReferenceImage = (index: number) => {
+    setReferenceImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // ---------- 更新图片列表并通知父组件 ----------
+  const updateImages = (newImages: GeneratedImage[]) => {
+    setGeneratedImages(newImages);
+    if (onImagesChange) {
+      onImagesChange(newImages);
+    }
+  };
+
+  // ---------- 生成图片（批量） ----------
+  const handleGenerateAll = async () => {
+    const validPrompts = prompts.filter(p => p.trim().length > 0);
+    if (validPrompts.length === 0) {
+      message.warning('请至少填写一个提示词');
       return;
     }
 
-    setLoading(true);
-    const count = quantity;
+    const platformLabel = PLATFORMS.find(p => p.value === platform)?.label || platform;
+    const languageLabel = LANGUAGES.find(l => l.value === language)?.label || language;
+    const refCount = referenceImages.length;
+    const enhancedBase = `[平台: ${platformLabel}] [语言: ${languageLabel}]` + (refCount > 0 ? ` [参考图${refCount}张]` : '');
 
-    try {
-      const newImages: GeneratedImage[] = [];
-      for (let i = 0; i < count; i++) {
+    setLoading(true);
+    const newImages: GeneratedImage[] = [];
+
+    for (let i = 0; i < validPrompts.length; i++) {
+      const fullPrompt = `${enhancedBase} ${validPrompts[i]}`;
+      try {
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, model, size, aspectRatio }),
+          body: JSON.stringify({
+            prompt: fullPrompt,
+            model,
+            size,
+            aspectRatio,
+            platform,
+            language,
+            referenceImages: referenceImages,
+          }),
         });
 
         const data = await response.json();
-
-        // ❌ 处理积分不足等错误
         if (!response.ok) {
           if (response.status === 402) {
             message.error(data.error || '积分不足，请充值');
           } else {
             message.error(`第 ${i+1} 张生成失败: ${data.error || '未知错误'}`);
           }
-          continue;  // 跳过这张，继续下一张
+          continue;
         }
 
-        // ✅ 生成成功
         if (data.success && data.imageUrl) {
-          // 更新全局积分（从 API 返回）
           if (data.credits !== undefined) {
             setCredits(data.credits);
           }
+          message.success(`第 ${i+1} 张生成成功，剩余积分：${data.credits ?? '未知'}`);
 
-          // 显示剩余积分通知（铃铛）
-          message.success(`✅ 生成成功，剩余积分：${data.credits ?? '未知'}`);
-
-          newImages.push({
+          const newImg: GeneratedImage = {
             id: `${Date.now()}-${i}`,
             url: data.imageUrl,
-            prompt: prompt,
+            prompt: fullPrompt,
             loading: false,
-          });
+            platform,
+            language,
+            referenceImages: refCount > 0 ? referenceImages : undefined,
+          };
+          newImages.push(newImg);
           if (onGenerateSuccess) {
             onGenerateSuccess(data.imageUrl);
           }
+          // 保存全局历史
+          saveHistory({
+            id: crypto.randomUUID(),
+            prompt: fullPrompt,
+            platform,
+            language,
+            imageUrl: data.imageUrl,
+            createdAt: Date.now(),
+          });
         } else {
           message.error(`第 ${i+1} 张生成失败: ${data.error || '未知错误'}`);
         }
+      } catch (error) {
+        console.error(`第 ${i+1} 张生成失败:`, error);
+        message.error(`第 ${i+1} 张生成失败，请重试`);
       }
-      setGeneratedImages((prev) => [...prev, ...newImages]);
-      if (newImages.length > 0) {
-        message.success(`成功生成 ${newImages.length} 张图片`);
-      }
-    } catch (error) {
-      console.error('生成失败:', error);
-      message.error('生成失败，请重试');
-    } finally {
-      setLoading(false);
     }
+
+    // 更新工作流图片列表（合并新旧）
+    const updatedList = [...generatedImages, ...newImages];
+    updateImages(updatedList);
+    if (newImages.length > 0) {
+      message.success(`成功生成 ${newImages.length} 张图片`);
+    }
+    setLoading(false);
   };
 
-  // ---------- 重新生成 ----------
+  // 重新生成单张
   const handleRegenerate = async (imageId: string, newPrompt: string) => {
     if (!newPrompt.trim()) {
       message.warning('请输入描述词');
       return;
     }
 
-    setGeneratedImages((prev) =>
-      prev.map((img) =>
-        img.id === imageId ? { ...img, loading: true } : img
-      )
+    // 设置加载状态
+    const updatedList = generatedImages.map((img) =>
+      img.id === imageId ? { ...img, loading: true } : img
     );
+    updateImages(updatedList);
+
+    const img = generatedImages.find(i => i.id === imageId);
+    const imgPlatform = img?.platform || platform;
+    const imgLanguage = img?.language || language;
+    const imgRefs = img?.referenceImages || [];
+
+    const platformLabel = PLATFORMS.find(p => p.value === imgPlatform)?.label || imgPlatform;
+    const languageLabel = LANGUAGES.find(l => l.value === imgLanguage)?.label || imgLanguage;
+    let enhancedPrompt = `[平台: ${platformLabel}] [语言: ${languageLabel}]`;
+    if (imgRefs.length > 0) {
+      enhancedPrompt += ` [参考图${imgRefs.length}张]`;
+    }
+    enhancedPrompt += ` ${newPrompt}`;
 
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: newPrompt, model, size, aspectRatio }),
+        body: JSON.stringify({
+          prompt: enhancedPrompt,
+          model,
+          size,
+          aspectRatio,
+          platform: imgPlatform,
+          language: imgLanguage,
+          referenceImages: imgRefs,
+        }),
       });
       const data = await response.json();
 
@@ -156,56 +344,62 @@ export default function ImageGenerator({
         } else {
           message.error('重新生成失败: ' + (data.error || '未知错误'));
         }
-        setGeneratedImages((prev) =>
-          prev.map((img) =>
-            img.id === imageId ? { ...img, loading: false } : img
-          )
+        // 恢复loading状态
+        const restored = generatedImages.map((img) =>
+          img.id === imageId ? { ...img, loading: false } : img
         );
+        updateImages(restored);
         return;
       }
 
       if (data.success && data.imageUrl) {
-        // 更新积分
         if (data.credits !== undefined) {
           setCredits(data.credits);
         }
         message.success(`✅ 重新生成成功，剩余积分：${data.credits ?? '未知'}`);
 
-        setGeneratedImages((prev) =>
-          prev.map((img) =>
-            img.id === imageId
-              ? { ...img, url: data.imageUrl, prompt: newPrompt, loading: false }
-              : img
-          )
+        const updated = generatedImages.map((img) =>
+          img.id === imageId
+            ? { ...img, url: data.imageUrl, prompt: enhancedPrompt, loading: false }
+            : img
         );
+        updateImages(updated);
         if (onGenerateSuccess) {
           onGenerateSuccess(data.imageUrl);
         }
+
+        saveHistory({
+          id: crypto.randomUUID(),
+          prompt: enhancedPrompt,
+          platform: imgPlatform,
+          language: imgLanguage,
+          imageUrl: data.imageUrl,
+          createdAt: Date.now(),
+        });
       } else {
         message.error('重新生成失败: ' + (data.error || '未知错误'));
-        setGeneratedImages((prev) =>
-          prev.map((img) =>
-            img.id === imageId ? { ...img, loading: false } : img
-          )
+        const restored = generatedImages.map((img) =>
+          img.id === imageId ? { ...img, loading: false } : img
         );
+        updateImages(restored);
       }
     } catch (error) {
       console.error('重新生成失败:', error);
       message.error('重新生成失败');
-      setGeneratedImages((prev) =>
-        prev.map((img) =>
-          img.id === imageId ? { ...img, loading: false } : img
-        )
+      const restored = generatedImages.map((img) =>
+        img.id === imageId ? { ...img, loading: false } : img
       );
+      updateImages(restored);
     }
   };
 
-  // ---------- 删除图片 ----------
+  // 删除图片
   const handleDeleteImage = (id: string) => {
-    setGeneratedImages((prev) => prev.filter((img) => img.id !== id));
+    const updated = generatedImages.filter((img) => img.id !== id);
+    updateImages(updated);
   };
 
-  // ========== 辅助：将 base64 或 data URL 转为 Blob ==========
+  // 导出PSD
   const dataURLToBlob = (dataUrl: string): Blob => {
     let processedData = dataUrl;
     if (!dataUrl.startsWith('data:')) {
@@ -222,7 +416,6 @@ export default function ImageGenerator({
     return new Blob([u8arr], { type: mime });
   };
 
-  // ========== 导出为 ZIP 包（PSD图层） ==========
   const handleExportPSD = async (imageUrl: string) => {
     let hideLoading: any = null;
     try {
@@ -236,7 +429,6 @@ export default function ImageGenerator({
       hideLoading();
 
       if (!data.success) {
-        // 处理积分不足等错误
         if (res.status === 402) {
           message.error(data.error || '积分不足，无法导出图层');
         } else {
@@ -245,7 +437,6 @@ export default function ImageGenerator({
         return;
       }
 
-      // ✅ 更新积分（如果 layer API 返回了 credits）
       if (data.credits !== undefined) {
         setCredits(data.credits);
         message.success(`✅ 图层导出成功，剩余积分：${data.credits}`);
@@ -286,7 +477,7 @@ export default function ImageGenerator({
     }
   };
 
-  // ========== UI 渲染 ==========
+  // ---------- UI 渲染 ----------
   return (
     <Card
       title={<span style={{ fontSize: 16, fontWeight: 600 }}>文字生图</span>}
@@ -305,7 +496,7 @@ export default function ImageGenerator({
       }}}
     >
       {/* 控制栏 */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '27px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
         <Select
           value={model}
           style={{ width: 180 }}
@@ -336,27 +527,155 @@ export default function ImageGenerator({
           ]}
         />
         <Select
+          value={platform}
+          style={{ width: 130 }}
+          onChange={(value) => setPlatform(value)}
+          options={PLATFORMS}
+          placeholder="电商平台"
+        />
+        <Select
+          value={language}
+          style={{ width: 110 }}
+          onChange={(value) => setLanguage(value)}
+          options={LANGUAGES}
+          placeholder="语言"
+        />
+        <Select
           value={quantity}
           style={{ width: 100 }}
           onChange={(value) => setQuantity(value)}
-          options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n}张` }))}
+          options={Array.from({ length: 15 }, (_, i) => ({ value: i + 1, label: `${i + 1}张` }))}
         />
       </div>
 
-      {/* 提示词输入 */}
-      <TextArea
-        rows={3}
-        placeholder="请输入您想要的画面描述，例如：一只在花园里读书的猫，油画风格"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        style={{ marginBottom: '12px' }}
-      />
+      {/* 参考图上传 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '12px', flexWrap: 'wrap' }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            border: '2px dashed #d9d9d9',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'border-color 0.3s',
+            position: 'relative',
+            flexShrink: 0,
+            overflow: 'hidden',
+            backgroundColor: '#fafafa',
+          }}
+          onClick={() => document.getElementById('ref-upload-input')?.click()}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1677ff'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d9d9d9'; }}
+        >
+          {referenceImages.length > 0 ? (
+            <img src={referenceImages[0]} alt="参考图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <PlusOutlined style={{ fontSize: 24, color: '#999' }} />
+          )}
+          {referenceImages.length > 1 && (
+            <span style={{
+              position: 'absolute',
+              bottom: 2,
+              right: 2,
+              background: 'rgba(0,0,0,0.6)',
+              color: '#fff',
+              fontSize: 10,
+              padding: '0 4px',
+              borderRadius: 4,
+              lineHeight: '16px',
+            }}>
+              +{referenceImages.length - 1}
+            </span>
+          )}
+        </div>
+        <input
+          id="ref-upload-input"
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleRefUpload(file);
+            }
+            e.target.value = '';
+          }}
+        />
+        {referenceImages.slice(1).map((img, idx) => (
+          <div key={idx} style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
+            <img src={img} alt={`参考图${idx+2}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 }} />
+            <CloseCircleOutlined
+              style={{ position: 'absolute', top: -6, right: -6, color: '#ff4d4f', cursor: 'pointer', fontSize: 16, background: '#fff', borderRadius: '50%' }}
+              onClick={() => removeReferenceImage(idx + 1)}
+            />
+          </div>
+        ))}
+        <span style={{ color: '#999', fontSize: 13 }}>上传参考图 (最多8张)</span>
+      </div>
+
+      {/* 多提示词输入框 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '12px' }}>
+        {prompts.map((p, idx) => (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontWeight: 500, fontSize: 13, width: 30 }}>#{idx+1}</span>
+            <TextArea
+              rows={2}
+              placeholder={`请输入第 ${idx+1} 张图片的描述`}
+              value={p}
+              onChange={(e) => updatePrompt(idx, e.target.value)}
+              style={{ flex: 1, resize: 'none' }}
+            />
+          </div>
+        ))}
+      </div>
 
       {/* 生成按钮 */}
-      <Button type="primary" onClick={handleGenerate} loading={loading} style={{ width: 120 }}>
-        生成图片
+      <Button type="primary" onClick={handleGenerateAll} loading={loading} style={{ width: 160 }}>
+        一键生成 {prompts.filter(p => p.trim().length > 0).length} 张
       </Button>
       {loading && <Spin tip="生成中，请稍候..." style={{ marginLeft: '12px' }} />}
+
+      {/* 历史记录按钮 */}
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button icon={<HistoryOutlined />} onClick={() => setShowHistory(!showHistory)}>
+          {showHistory ? '隐藏历史' : '显示历史'}
+        </Button>
+      </div>
+
+      {/* 历史列表 */}
+      {showHistory && history.length > 0 && (
+        <div style={{ marginTop: 16, maxHeight: 200, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8, padding: 8 }}>
+          <Divider orientation="left" style={{ margin: '0 0 8px 0', fontSize: 14 }}>📋 工作流历史</Divider>
+          <List
+            dataSource={history}
+            renderItem={(item) => (
+              <List.Item style={{ padding: '6px 0', borderBottom: '1px solid #f5f5f5' }}>
+                <div style={{ display: 'flex', gap: 12, width: '100%', alignItems: 'center' }}>
+                  <img src={item.imageUrl} alt="历史" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <Tag color="blue">{PLATFORMS.find(p => p.value === item.platform)?.label}</Tag>
+                      <Tag color="green">{LANGUAGES.find(l => l.value === item.language)?.label}</Tag>
+                    </div>
+                    <TextArea
+                      value={item.prompt}
+                      rows={1}
+                      readOnly
+                      style={{ border: 'none', background: 'transparent', padding: 0, resize: 'none', fontSize: 12 }}
+                    />
+                    <div style={{ fontSize: 10, color: '#999' }}>
+                      {new Date(item.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
+        </div>
+      )}
 
       {/* 生成结果 */}
       {generatedImages.length > 0 && (
@@ -412,15 +731,23 @@ export default function ImageGenerator({
                   ]}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <Tag color="blue">{PLATFORMS.find(p => p.value === img.platform)?.label || img.platform}</Tag>
+                      <Tag color="green">{LANGUAGES.find(l => l.value === img.language)?.label || img.language}</Tag>
+                      {img.referenceImages && img.referenceImages.length > 0 && <Tag color="orange">参考图 {img.referenceImages.length}张</Tag>}
+                    </div>
                     <TextArea
                       rows={2}
                       value={img.prompt}
                       onChange={(e) => {
-                        setGeneratedImages((prev) =>
-                          prev.map((item) =>
+                        // 更新本地图片的提示词（不影响父组件）
+                        setGeneratedImages(prev =>
+                          prev.map(item =>
                             item.id === img.id ? { ...item, prompt: e.target.value } : item
                           )
                         );
+                        // 注意：此处修改提示词不会自动保存到工作流，因为未调用 onImagesChange
+                        // 如果需要保存，可以在这里调用 onImagesChange
                       }}
                       placeholder="修改提示词重新生成"
                       style={{ resize: 'none' }}
