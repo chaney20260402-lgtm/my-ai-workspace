@@ -10,6 +10,8 @@ import { signOut } from 'next-auth/react';
 import './globals.css';
 import NotificationDropdown from '@/app/workspace/components/NotificationDropdown';
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
+// 导入 CreditsProvider 和 useCredits
+import { CreditsProvider, useCredits } from '@/app/contexts/CreditsContext';
 
 const { Text } = Typography;
 
@@ -21,18 +23,18 @@ const menuItems = [
   { path: '/workspace/profile', name: '个人中心' },
 ];
 
-// ---------- 积分显示组件 ----------
+// ---------- 积分显示组件（使用全局积分） ----------
 function CreditDisplay() {
-  const [credits, setCredits] = useState(150);
+  const { credits, refreshCredits } = useCredits(); // 从 Context 获取积分
   const [records, setRecords] = useState<CreditRecord[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('userCredits');
-    if (saved) setCredits(parseInt(saved));
+    // 获取积分记录（用于弹窗统计）
     const recordsData = getCreditRecords();
     setRecords(recordsData);
   }, []);
 
+  // 计算统计信息（用于弹窗）
   const totalRecords = records.length;
   const totalConsumed = records
     .filter(r => r.type === 'consume')
@@ -46,7 +48,7 @@ function CreditDisplay() {
       <div style={{ textAlign: 'center', marginBottom: 12 }}>
         <Text strong style={{ fontSize: 16 }}>积分余额</Text>
         <div style={{ fontSize: 28, color: '#1677ff', fontWeight: 'bold' }}>
-          {credits}
+          {credits !== null ? credits : '加载中...'}
         </div>
       </div>
       <Divider style={{ margin: '8px 0' }} />
@@ -68,13 +70,15 @@ function CreditDisplay() {
   );
 
   return (
-  <Popover content={popoverContent} trigger="click" placement="bottomRight" overlayStyle={{ padding: 0 }}>
-    <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-      <span style={{ fontSize: 18 }}>🌿</span>
-      <span style={{ fontWeight: 'bold', fontSize: 14 }}>{credits}</span>
-    </span>
-  </Popover>
-);
+    <Popover content={popoverContent} trigger="click" placement="bottomRight" overlayStyle={{ padding: 0 }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+        <span style={{ fontSize: 18 }}>🌿</span>
+        <span style={{ fontWeight: 'bold', fontSize: 14 }}>
+          {credits !== null ? credits : '…'}
+        </span>
+      </span>
+    </Popover>
+  );
 }
 
 // ---------- 内部布局组件 ----------
@@ -113,61 +117,63 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-   <ProLayout
-  title="Aguala"
-  logo={false}
-  layout="mix"
-  fixedHeader={true}
-  navTheme="light"
-  colorPrimary="#101011"
-  location={{ pathname }}
-  route={{ routes: menuItems }}
-  menuItemRender={(item, dom) => {
-    if (!item.path) return dom;
-    return (
-      <div onClick={() => router.push(item.path as string)} style={{ cursor: 'pointer' }}>
-        {dom}
-      </div>
-    );
-  }}
-  actionsRender={() => [
-  <Space 
-    key="user" 
-    size="middle" 
-    style={{ 
-      display: 'flex', 
-      alignItems: 'center',
-      background: 'transparent !important',  // 强制透明背景
-      boxShadow: 'none !important',          // 强制无阴影
-      padding: 0,                            // 移除内边距
-      borderRadius: 0,
-    }}
-    className="no-hover"                     // 添加自定义类以便 CSS 覆盖
-  >
-    <NotificationDropdown />
-    <CreditDisplay />
-    <Dropdown overlay={userMenu} placement="bottomRight">
-      <Avatar
-        src={avatarUrl || undefined}
-        icon={!avatarUrl ? <UserOutlined /> : undefined}
-        style={{ cursor: 'pointer' }}
-      />
-    </Dropdown>
-  </Space>,
-]}
->
-  {children}
-</ProLayout>
+    <ProLayout
+      title="Aguala"
+      logo={false}
+      layout="mix"
+      fixedHeader={true}
+      navTheme="light"
+      colorPrimary="#101011"
+      location={{ pathname }}
+      route={{ routes: menuItems }}
+      menuItemRender={(item, dom) => {
+        if (!item.path) return dom;
+        return (
+          <div onClick={() => router.push(item.path as string)} style={{ cursor: 'pointer' }}>
+            {dom}
+          </div>
+        );
+      }}
+      actionsRender={() => [
+        <Space 
+          key="user" 
+          size="middle" 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            background: 'transparent !important',
+            boxShadow: 'none !important',
+            padding: 0,
+            borderRadius: 0,
+          }}
+          className="no-hover"
+        >
+          <NotificationDropdown />
+          <CreditDisplay />  {/* 现在使用全局积分 */}
+          <Dropdown overlay={userMenu} placement="bottomRight">
+            <Avatar
+              src={avatarUrl || undefined}
+              icon={!avatarUrl ? <UserOutlined /> : undefined}
+              style={{ cursor: 'pointer' }}
+            />
+          </Dropdown>
+        </Space>,
+      ]}
+    >
+      {children}
+    </ProLayout>
   );
 }
 
-// ---------- 根布局 ----------
+// ---------- 根布局（包裹 CreditsProvider） ----------
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
       <body>
         <SessionProvider>
-          <LayoutContent>{children}</LayoutContent>
+          <CreditsProvider>  {/* 积分上下文提供者 */}
+            <LayoutContent>{children}</LayoutContent>
+          </CreditsProvider>
         </SessionProvider>
       </body>
     </html>

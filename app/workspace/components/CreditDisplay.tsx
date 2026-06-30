@@ -3,20 +3,22 @@
 import React, { useState, useEffect } from 'react';
 import { Popover, Divider, List, Typography } from 'antd';
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
+import { useCredits } from '@/app/contexts/CreditsContext';  // 导入全局积分 Hook
 
 const { Text } = Typography;
 
 export default function CreditDisplay() {
-  const [credits, setCredits] = useState(150);
+  // 使用全局积分状态
+  const { credits, refreshCredits } = useCredits();
   const [records, setRecords] = useState<CreditRecord[]>([]);
 
+  // 获取积分记录（用于统计弹窗）
   useEffect(() => {
-    const saved = localStorage.getItem('userCredits');
-    if (saved) setCredits(parseInt(saved));
     const recordsData = getCreditRecords();
     setRecords(recordsData);
   }, []);
 
+  // 计算统计信息
   const totalRecords = records.length;
   const totalConsumed = records
     .filter(r => r.type === 'consume')
@@ -30,7 +32,7 @@ export default function CreditDisplay() {
       <div style={{ textAlign: 'center', marginBottom: 12 }}>
         <Text strong style={{ fontSize: 16 }}>积分余额</Text>
         <div style={{ fontSize: 28, color: '#1677ff', fontWeight: 'bold' }}>
-          {credits}
+          {credits !== null ? credits : '加载中...'}
         </div>
       </div>
       <Divider style={{ margin: '8px 0' }} />
@@ -52,11 +54,13 @@ export default function CreditDisplay() {
   );
 
   return (
-  <Popover content={popoverContent} trigger="click" placement="bottomRight">
-    <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-      <span style={{ fontSize: 18 }}>🌿</span>
-      <span style={{ fontWeight: 'bold', fontSize: 14 }}>{credits}</span>
-    </span>
-  </Popover>
-);
+    <Popover content={popoverContent} trigger="click" placement="bottomRight">
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+        <span style={{ fontSize: 18 }}>🌿</span>
+        <span style={{ fontWeight: 'bold', fontSize: 14 }}>
+          {credits !== null ? credits : '…'}
+        </span>
+      </span>
+    </Popover>
+  );
 }

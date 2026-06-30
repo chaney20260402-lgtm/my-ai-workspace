@@ -1,85 +1,110 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Badge, Dropdown, List, Button, Typography, Empty, message } from 'antd';
-import { BellOutlined, CheckOutlined } from '@ant-design/icons';
+import { Badge, Dropdown, List, Button, Typography, Empty, Spin, message } from 'antd';
+import { BellOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
-interface Notification {
-  id: number;
-  type: 'success' | 'info' | 'warning';
-  title: string;
-  content: string;
-  read: boolean;
+interface CreditRecord {
+  amount: number;
+  type: 'consume' | 'recharge';
+  description: string;
   createdAt: string;
 }
 
-const mockNotifications: Notification[] = [
-  { id: 1, type: 'success', title: '充值成功', content: '充值 100 积分到账', read: false, createdAt: new Date().toISOString() },
-  { id: 2, type: 'info', title: '图片生成完成', content: '您生成的图片已保存到资产库', read: false, createdAt: new Date().toISOString() },
-];
-
 export default function NotificationDropdown() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [records, setRecords] = useState<CreditRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [visible, setVisible] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('notifications');
-    if (saved) {
-      setNotifications(JSON.parse(saved));
-    } else {
-      setNotifications(mockNotifications);
-      localStorage.setItem('notifications', JSON.stringify(mockNotifications));
+  // 从 API 获取积分记录
+  const fetchRecords = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/credit-records?limit=30');
+      const data = await res.json();
+      if (res.ok) {
+        setRecords(data.records || []);
+      } else {
+        console.error('获取积分记录失败:', data.error);
+        message.error('获取积分记录失败');
+      }
+    } catch (error) {
+      console.error('获取积分记录异常:', error);
+      message.error('网络错误，请重试');
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const markAsRead = (id: number) => {
-    const updated = notifications.map(n =>
-      n.id === id ? { ...n, read: true } : n
-    );
-    setNotifications(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
   };
 
-  const markAllAsRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
-    message.success('已全部标记为已读');
-  };
+  // 点击铃铛时加载数据
+  useEffect(() => {
+    if (visible) {
+      fetchRecords();
+    }
+  }, [visible]);
 
+  // 计算未读数量（此处我们用总记录数作为红点提示，也可以改为新记录数）
+  // 简单起见，如果有记录就显示小圆点（表示有积分变动），不显示具体数字
+  const hasRecords = records.length > 0;
+
+  // 下拉内容
   const menu = (
-    <div style={{ width: 360, maxHeight: 400, overflow: 'auto', background: '#fff', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-    <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Text strong>消息通知</Text>
-      {unreadCount > 0 && (
-        <Button type="link" size="small" onClick={markAllAsRead}>
-          全部已读
+    <div style={{ 
+      width: 360, 
+      maxHeight: 400, 
+      overflow: 'auto', 
+      background: '#fff', 
+      borderRadius: 8, 
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      padding: '4px 0'
+    }}>
+      <div style={{ 
+        padding: '12px 16px', 
+        borderBottom: '1px solid #f0f0f0', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center' 
+      }}>
+        <Text strong>积分变动</Text>
+        <Button 
+          type="link" 
+          size="small" 
+          onClick={() => { 
+            fetchRecords(); 
+            message.success('已刷新');
+          }}
+        >
+          刷新
         </Button>
-      )}
-    </div>
-      {notifications.length === 0 ? (
-        <Empty description="暂无通知" />
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <Spin />
+        </div>
+      ) : records.length === 0 ? (
+        <Empty description="暂无积分变动" style={{ padding: '20px 0' }} />
       ) : (
         <List
-          dataSource={notifications}
+          dataSource={records}
           renderItem={(item) => (
-            <List.Item
-              style={{ background: item.read ? 'transparent' : '#f6f8fa', cursor: 'pointer' }}
-              onClick={() => markAsRead(item.id)}
-            >
+            <List.Item style={{ padding: '12px 16px' }}>
               <List.Item.Meta
                 title={
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Text strong={!item.read}>{item.title}</Text>
-                    {!item.read && <Badge dot color="blue" />}
+                    <Text strong>
+                      {item.type === 'consume' ? '消耗' : '充值'}
+                    </Text>
+                    <Text style={{ color: item.amount < 0 ? '#ff4d4f' : '#52c41a' }}>
+                      {item.amount > 0 ? `+${item.amount}` : item.amount}
+                    </Text>
                   </div>
                 }
                 description={
                   <div>
-                    <Text type="secondary">{item.content}</Text>
+                    <Text type="secondary">{item.description || ''}</Text>
                     <br />
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {new Date(item.createdAt).toLocaleString()}
@@ -95,8 +120,14 @@ export default function NotificationDropdown() {
   );
 
   return (
-    <Dropdown overlay={menu} trigger={['click']} placement="bottomRight">
-      <Badge count={unreadCount} size="small" offset={[-4, 4]}>
+    <Dropdown
+      overlay={menu}
+      trigger={['click']}
+      placement="bottomRight"
+      open={visible}
+      onOpenChange={(open) => setVisible(open)}
+    >
+      <Badge dot={hasRecords} size="small" offset={[-4, 4]}>
         <BellOutlined style={{ fontSize: 20, cursor: 'pointer' }} />
       </Badge>
     </Dropdown>

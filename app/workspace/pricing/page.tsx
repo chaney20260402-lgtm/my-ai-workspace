@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Button, Typography, Divider, Space, Tag, message } from 'antd';
 import { CheckOutlined, CrownOutlined, RocketOutlined, StarOutlined } from '@ant-design/icons';
+import { useCredits } from '@/app/contexts/CreditsContext';  // ← 导入全局积分
 
 const { Title, Text } = Typography;
 
-// 会员套餐数据
+// 会员套餐数据（保持不变）
 const membershipPlans = [
   {
     id: 'free',
@@ -15,7 +16,7 @@ const membershipPlans = [
     currency: '¥',
     period: '/月',
     icon: <StarOutlined style={{ fontSize: 24, color: '#faad14' }} />,
-    credits: 100, // 赠送积分
+    credits: 100,
     features: [
       '当月deals额度: 100',
       '模板使用',
@@ -93,20 +94,17 @@ const creditPlans = [
 ];
 
 export default function PricingPage() {
-  const [credits, setCredits] = useState(150);
+  // ---------- 使用全局积分状态 ----------
+  const { credits, setCredits, refreshCredits } = useCredits();
+
   const [loading, setLoading] = useState(false);
 
+  // 页面加载时刷新积分
   useEffect(() => {
-    const saved = localStorage.getItem('userCredits');
-    if (saved) {
-      setCredits(parseInt(saved));
-    } else {
-      localStorage.setItem('userCredits', '150');
-      setCredits(150);
-    }
+    refreshCredits();
   }, []);
 
-  // ---------- 支付宝支付 ----------
+  // ---------- 支付宝支付（保持不变） ----------
   const handleAlipayPayment = async (plan: any, type: 'recharge' | 'membership' = 'recharge') => {
     setLoading(true);
     try {
@@ -137,14 +135,33 @@ export default function PricingPage() {
     }
   };
 
-  // ---------- 免费套餐开通（不支付） ----------
-  const handleFreePlan = (plan: any) => {
-    const current = parseInt(localStorage.getItem('userCredits') || '0');
-    const newCredits = current + plan.credits;
-    localStorage.setItem('userCredits', String(newCredits));
-    setCredits(newCredits);
-    message.success(`成功开通${plan.name}！获得 ${plan.credits} 积分`);
-    window.location.reload();
+  // ---------- 免费套餐开通（使用 /api/recharge） ----------
+  const handleFreePlan = async (plan: any) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/recharge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: plan.credits,
+          plan: plan.name,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // ✅ 更新全局积分
+        setCredits(data.credits);
+        message.success(`成功开通${plan.name}！获得 ${plan.credits} 积分，当前积分：${data.credits}`);
+        // 铃铛会自动显示充值记录（由 /api/recharge 写入）
+      } else {
+        message.error(data.error || '开通失败，请重试');
+      }
+    } catch (error) {
+      console.error('开通失败:', error);
+      message.error('网络错误，请重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ---------- 会员套餐点击处理 ----------
@@ -156,11 +173,18 @@ export default function PricingPage() {
     }
   };
 
+  // ---------- 积分充值点击处理 ----------
+  const handleCreditRecharge = (plan: any) => {
+    handleAlipayPayment(plan, 'recharge');
+  };
+
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <Title level={2}>价目表</Title>
-        <Text strong style={{ fontSize: 16 }}>当前积分：{credits}</Text>
+        <Text strong style={{ fontSize: 16 }}>
+          当前积分：{credits !== null ? credits : '加载中...'}
+        </Text>
       </div>
 
       {/* ========== 会员专区 ========== */}
@@ -254,7 +278,7 @@ export default function PricingPage() {
                   type="primary"
                   size="large"
                   block
-                  onClick={() => handleAlipayPayment(plan, 'recharge')}
+                  onClick={() => handleCreditRecharge(plan)}
                   loading={loading}
                 >
                   立即充值

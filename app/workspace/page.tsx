@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layout, Card, Tabs, Input, Button, message, Avatar, Dropdown, Menu,
   Typography, Divider, Checkbox, Space, Carousel, Badge, Select, Row, Col,
@@ -127,7 +127,7 @@ export default function Workspace() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // ---------- 状态（顶层） ----------
+  // ---------- 状态 ----------
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [smsLoading, setSmsLoading] = useState(false);
@@ -135,12 +135,290 @@ export default function Workspace() {
   const [activeTab, setActiveTab] = useState('qrcode');
   const [agreed, setAgreed] = useState(false);
 
-  // 首页状态
   const [templates] = useState(mockTemplates);
   const [category, setCategory] = useState('全部');
   const [searchText, setSearchText] = useState('');
   const [credits, setCredits] = useState(150);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  // ---------- 环绕旋转轨道动态计算 ----------
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  // ---------- Canvas 引用 ----------
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const nebulaCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // ---------- 鼠标追踪波纹效果 ----------
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    let ripples: { x: number; y: number; radius: number; alpha: number }[] = [];
+
+    const handleResize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    };
+    window.addEventListener('resize', handleResize);
+
+    const handleMouseMove = (e: MouseEvent) => {
+      ripples.push({
+        x: e.clientX,
+        y: e.clientY,
+        radius: 5,
+        alpha: 1,
+      });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+
+    const animate = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.radius += 1.8;
+        r.alpha -= 0.015;
+        if (r.alpha <= 0) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(120, 180, 255, ${r.alpha * 0.6})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200, 230, 255, ${r.alpha * 0.15})`;
+        ctx.fill();
+      }
+      requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
+  // ---------- 螺旋星系（一圈圈星云） ----------
+  useEffect(() => {
+    const canvas = nebulaCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    // 银河中心位置：屏幕右侧外部（略微左移，增加覆盖）
+    const centerX = width * 1.1;
+    const centerY = height * 0.5;
+
+    // 旋臂数量
+    const armCount = 4;
+    // 每条旋臂粒子数（增加密度）
+    const particlesPerArm = 2000;
+    // 星云尘埃粒子数
+    const dustCount = 1200;
+
+    const particles: {
+      radius: number;
+      angle: number;
+      armIndex: number;
+      offset: number;
+      size: number;
+      hue: number;
+      brightness: number;
+      alpha: number;
+      isDust: boolean;
+    }[] = [];
+
+    // 生成旋臂粒子（半径范围扩展到 1500）
+    for (let arm = 0; arm < armCount; arm++) {
+      const armAngleOffset = (arm / armCount) * Math.PI * 2;
+      for (let i = 0; i < particlesPerArm; i++) {
+        const t = i / particlesPerArm;
+        const radius = 40 + t * t * 1460; // 最大半径 1500
+        const spiralAngle = radius * 0.02;
+        const randomOffset = (Math.random() - 0.5) * (40 + t * 80);
+        const angle = armAngleOffset + spiralAngle + randomOffset / radius;
+        const size = 0.5 + (1 - t) * 2.8 + Math.random() * 0.8;
+        const hue = 40 + t * 200;
+        const brightness = 60 + (1 - t) * 50;
+        const alpha = 0.5 + Math.random() * 0.5;
+        particles.push({
+          radius,
+          angle,
+          armIndex: arm,
+          offset: randomOffset,
+          size,
+          hue,
+          brightness,
+          alpha,
+          isDust: false,
+        });
+      }
+    }
+
+    // 生成星云尘埃（分布在旋臂之间）
+    for (let i = 0; i < dustCount; i++) {
+      const radius = 100 + Math.random() * 1300;
+      const angle = Math.random() * Math.PI * 2;
+      const size = 4 + Math.random() * 12;
+      const hue = 200 + Math.random() * 60;
+      const brightness = 25 + Math.random() * 40;
+      particles.push({
+        radius,
+        angle,
+        armIndex: -1,
+        offset: 0,
+        size,
+        hue,
+        brightness,
+        alpha: 0.12 + Math.random() * 0.2,
+        isDust: true,
+      });
+    }
+    // 背景星点
+    const stars: { x: number; y: number; size: number; alpha: number; twinkleSpeed: number }[] = [];
+    for (let i = 0; i < 1500; i++) {
+      stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        size: Math.random() * 1.5 + 0.5,
+        alpha: 0.2 + Math.random() * 0.6,
+        twinkleSpeed: 0.005 + Math.random() * 0.02,
+      });
+    }
+
+    let rotation = 0;
+    let time = 0;
+
+    const animate = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. 绘制背景星点
+      time += 0.02;
+      for (const star of stars) {
+        const alpha = star.alpha + Math.sin(time * star.twinkleSpeed) * 0.2;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, Math.min(1, alpha))})`;
+        ctx.fill();
+      }
+
+      // 2. 绘制星云光晕
+      const grad = ctx.createRadialGradient(
+        centerX, centerY, 0,
+        centerX, centerY, 700
+      );
+      grad.addColorStop(0, 'rgba(255, 230, 200, 0.05)');
+      grad.addColorStop(0.3, 'rgba(200, 160, 255, 0.04)');
+      grad.addColorStop(0.7, 'rgba(100, 100, 255, 0.02)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 3. 绘制星云尘埃（大粒子，半透明）
+      rotation += 0.00015;
+      for (const p of particles) {
+        if (!p.isDust) continue;
+        const currentAngle = p.angle + rotation * 0.8;
+        const x = Math.cos(currentAngle) * p.radius + centerX;
+        const y = Math.sin(currentAngle) * p.radius + centerY;
+        if (x < 0 || x > width || y < 0 || y > height) continue;
+        ctx.beginPath();
+        ctx.arc(x, y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${p.hue}, 60%, ${p.brightness}%, ${p.alpha})`;
+        ctx.fill();
+      }
+
+      // 4. 绘制旋臂粒子（核心）
+      for (const p of particles) {
+        if (p.isDust) continue;
+        const currentAngle = p.angle + rotation * 1.0;
+        const x = Math.cos(currentAngle) * p.radius + centerX;
+        const y = Math.sin(currentAngle) * p.radius + centerY;
+        if (x < 0 || x > width || y < 0 || y > height) continue;
+        ctx.beginPath();
+        ctx.arc(x, y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${p.hue}, 85%, ${p.brightness}%, ${p.alpha})`;
+        ctx.fill();
+      }
+
+      // 5. 绘制星系核心（密集光团）
+      for (let i = 0; i < 300; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * 60;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        const bright = 180 + Math.random() * 75;
+        const size = Math.random() * 3 + 1;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(40, 100%, ${bright}%, 0.9)`;
+        ctx.fill();
+      }
+
+      requestAnimationFrame(animate);
+    };
+    animate();
+
+    const handleResize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // ---------- 计算卡片偏移 ----------
+  useEffect(() => {
+    const updateOffset = () => {
+      if (cardRef.current) {
+        const rect = cardRef.current.getBoundingClientRect();
+        const cardCenterX = rect.left + rect.width / 2;
+        const cardCenterY = rect.top + rect.height / 2;
+        const pageCenterX = window.innerWidth / 2;
+        const pageCenterY = window.innerHeight / 2;
+        setOffset({
+          x: cardCenterX - pageCenterX,
+          y: cardCenterY - pageCenterY,
+        });
+      }
+    };
+
+    updateOffset();
+    window.addEventListener('resize', updateOffset);
+    return () => window.removeEventListener('resize', updateOffset);
+  }, []);
+
+  // ---------- 环绕旋转图标 ----------
+  const icons = [
+    { name: 'GPT', color: '#74aa9c' },
+    { name: 'MJ', color: '#a97bcc' },
+    { name: 'SD', color: '#f472b6' },
+    { name: 'DALL-E', color: '#60a5fa' },
+    { name: 'Krea', color: '#facc15' },
+    { name: 'Lexica', color: '#fb923c' },
+  ];
 
   // 读取头像
   useEffect(() => {
@@ -148,7 +426,6 @@ export default function Workspace() {
     setAvatarUrl(saved);
   }, []);
 
-  // 读取积分
   useEffect(() => {
     const saved = localStorage.getItem('userCredits');
     if (saved) {
@@ -156,7 +433,6 @@ export default function Workspace() {
     }
   }, []);
 
-  // 过滤模版
   const filteredTemplates = templates.filter(item => {
     const matchCategory = category === '全部' || item.category === category;
     const matchSearch = item.name.includes(searchText);
@@ -232,7 +508,7 @@ export default function Workspace() {
     </Menu>
   );
 
-  // ---------- Tab 配置（登录界面） ----------
+  // ---------- Tab 配置 ----------
   const tabItems = [
     {
       key: 'qrcode',
@@ -324,123 +600,321 @@ export default function Workspace() {
     );
   }
 
-  // ---------- 已登录：工作台（ProLayout） ----------
+  // ---------- 已登录 ----------
   if (session) {
-  return (
-    <ProLayout
-      title="Aguala"
-      logo={false}
-      layout="mix"
-      fixedHeader={true}
-      navTheme="light"
-      colorPrimary="#101011"
-      location={{ pathname }}
-      route={{ routes: menuItems }}
-      contentStyle={{ padding: 0 }}
-      menuItemRender={(item, dom) => {
-        return <Link href={item.path || '#'}>{dom}</Link>;
-      }}
-      actionsRender={() => [
-        <Space key="user" size="middle">
-          <NotificationDropdown />
-          <CreditDisplay /> 
-          <Dropdown overlay={userMenu} placement="bottomRight">
-            <Avatar
-              src={avatarUrl || undefined}
-              icon={!avatarUrl ? <UserOutlined /> : undefined}
-              style={{ cursor: 'pointer' }}
+    return (
+      <ProLayout
+        title="Aguala"
+        logo={false}
+        layout="mix"
+        fixedHeader={true}
+        navTheme="light"
+        colorPrimary="#101011"
+        location={{ pathname }}
+        route={{ routes: menuItems }}
+        contentStyle={{ padding: 0 }}
+        menuItemRender={(item, dom) => {
+          return <Link href={item.path || '#'}>{dom}</Link>;
+        }}
+        actionsRender={() => [
+          <Space key="user" size="middle">
+            <NotificationDropdown />
+            <CreditDisplay />
+            <Dropdown overlay={userMenu} placement="bottomRight">
+              <Avatar
+                src={avatarUrl || undefined}
+                icon={!avatarUrl ? <UserOutlined /> : undefined}
+                style={{ cursor: 'pointer' }}
+              />
+            </Dropdown>
+          </Space>,
+        ]}
+      >
+        <div style={{ padding: '0px 0px 0px 0px' }}>
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+            <Select
+              defaultValue="全部"
+              style={{ width: 100 }}
+              onChange={(value) => setCategory(value)}
+            >
+              <Select.Option value="全部">全部</Select.Option>
+              <Select.Option value="潮流服饰">潮流服饰</Select.Option>
+              <Select.Option value="鞋靴箱包">鞋靴箱包</Select.Option>
+              <Select.Option value="数码家电">数码家电</Select.Option>
+              <Select.Option value="美妆个护">美妆个护</Select.Option>
+              <Select.Option value="珠宝首饰">珠宝首饰</Select.Option>
+              <Select.Option value="母婴玩具">母婴玩具</Select.Option>
+              <Select.Option value="食品酒饮">食品酒饮</Select.Option>
+              <Select.Option value="家居生活">家居生活</Select.Option>
+              <Select.Option value="运动户外">运动户外</Select.Option>
+              <Select.Option value="汽车用品">汽车用品</Select.Option>
+              <Select.Option value="图书音像">图书音像</Select.Option>
+              <Select.Option value="虚拟商品">虚拟商品</Select.Option>
+            </Select>
+            <Input.Search
+              placeholder="搜索模版名称"
+              allowClear
+              style={{ width: 250 }}
+              onSearch={(value) => setSearchText(value)}
             />
-          </Dropdown>
-        </Space>,
-      ]}
-    >
-      <div style={{ padding: '0px 0px 0px 0px' }}>
-        {/* 搜索和分类 */}
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
-          <Select
-            defaultValue="全部"
-            style={{ width: 100 }}
-            onChange={(value) => setCategory(value)}
-          >
-            <Select.Option value="全部">全部</Select.Option>
-            <Select.Option value="潮流服饰">潮流服饰</Select.Option>
-            <Select.Option value="鞋靴箱包">鞋靴箱包</Select.Option>
-            <Select.Option value="数码家电">数码家电</Select.Option>
-            <Select.Option value="美妆个护">美妆个护</Select.Option>
-            <Select.Option value="珠宝首饰">珠宝首饰</Select.Option>
-            <Select.Option value="母婴玩具">母婴玩具</Select.Option>
-            <Select.Option value="食品酒饮">食品酒饮</Select.Option>
-            <Select.Option value="家居生活">家居生活</Select.Option>
-            <Select.Option value="运动户外">运动户外</Select.Option>
-            <Select.Option value="汽车用品">汽车用品</Select.Option>
-            <Select.Option value="图书音像">图书音像</Select.Option>
-            <Select.Option value="虚拟商品">虚拟商品</Select.Option>
-          </Select>
-          <Input.Search
-            placeholder="搜索模版名称"
-            allowClear
-            style={{ width: 250 }}
-            onSearch={(value) => setSearchText(value)}
-          />
-        </div>
+          </div>
 
-        {/* 模版列表 */}
-        <Row gutter={[16, 16]}>
-          {filteredTemplates.map((template) => (
-            <Col key={template.id} xs={24} sm={12} md={8} lg={6}>
-              <Card
-                hoverable
-                cover={
-                  <div style={{ height: 180, overflow: 'hidden' }}>
-                    <img
-                      src={template.image}
-                      alt={template.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  </div>
-                }
-                onClick={() => message.info(`选中模版：${template.name}`)}
-              >
-                <Card.Meta title={template.name} description={template.category} />
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </div>
-    </ProLayout>
-  );
-}
+          <Row gutter={[16, 16]}>
+            {filteredTemplates.map((template) => (
+              <Col key={template.id} xs={24} sm={12} md={8} lg={6}>
+                <Card
+                  hoverable
+                  cover={
+                    <div style={{ height: 180, overflow: 'hidden' }}>
+                      <img
+                        src={template.image}
+                        alt={template.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                  }
+                  onClick={() => message.info(`选中模版：${template.name}`)}
+                >
+                  <Card.Meta title={template.name} description={template.category} />
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </div>
+      </ProLayout>
+    );
+  }
 
   // ---------- 未登录 ----------
   return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', padding: '60px', gap: '60px', background: '#f0f2f5', position: 'relative' }}>
-      <div style={{ flex: '0 0 60%', height: 'calc(60% - 20px)', position: 'relative', overflow: 'hidden', borderRadius: 16 }}>
-        <Carousel autoplay autoplaySpeed={4000} pauseOnHover effect="fade" style={{ height: '100%' }}>
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} style={{ height: '100%', width: '100%' }}>
-              <img
-                src={`https://picsum.photos/seed/${i}/1200/800`}
-                alt={`slide ${i}`}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
-              />
-            </div>
-          ))}
-        </Carousel>
+    <div
+      style={{
+        position: 'relative',
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        background: 'radial-gradient(circle at 50% 50%, #0a0a1a, #050510)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* Canvas 动态背景（波纹） */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+
+      {/* 螺旋星系（一圈圈星云） */}
+      <canvas
+        ref={nebulaCanvasRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 5,
+        }}
+      />
+
+      {/* 环绕旋转图标 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '45%',
+          left: '20%',
+          width: 1000,
+          height: 1000,
+          transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+          pointerEvents: 'none',
+          zIndex: 6,
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            animation: 'spin 25s linear infinite',
+          }}
+        >
+          {icons.map((icon, index) => {
+            const angle = (index / icons.length) * 360;
+            return (
+              <div
+                key={icon.name}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: `rotate(${angle}deg) translateY(-200px)`,
+                  color: icon.color,
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                  textShadow: `0 0 30px ${icon.color}40`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 100,
+                  height: 100,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.04)',
+                  backdropFilter: 'blur(6px)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {icon.name}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div style={{ flex: 1, height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 20px' }}>
-        <Card bordered={false} style={{ width: '100%', maxWidth: 440, borderRadius: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.08)', padding: '32px 24px' }}>
-          <Tabs activeKey={activeTab} onChange={setActiveTab} centered size="large" items={tabItems} />
-          <div style={{ textAlign: 'center', marginTop: 24, color: '#aaa', fontSize: 12 }}>
-            无限的增长源自无限的创意
-          </div>
-        </Card>
+      {/* 登录卡片 */}
+      <div
+        ref={cardRef}
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          width: '440px',
+          maxWidth: '92vw',
+          padding: '40px 36px',
+          background: 'rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(24px)',
+          borderRadius: '28px',
+          border: '1px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 30px 60px rgba(0,0,0,0.5)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
+      >
+        <h1
+          style={{
+            textAlign: 'center',
+            color: '#fff',
+            fontSize: '28px',
+            fontWeight: 600,
+            marginBottom: 4,
+            letterSpacing: '1px',
+          }}
+        >
+          Aguala
+        </h1>
+        <p
+          style={{
+            textAlign: 'center',
+            color: 'rgba(255,255,255,0.5)',
+            marginBottom: 20,
+            fontSize: '14px',
+          }}
+        >
+          登录以访问您的AI工作流
+        </p>
+
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          centered
+          size="large"
+          items={tabItems}
+          className="login-tabs"
+        />
+
+        <div style={{ textAlign: 'center', marginTop: 24, color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
+          无限的增长源自无限的创意
+        </div>
       </div>
 
-      <div style={{ position: 'absolute', top: 10, left: 40, color: '#000000', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-        <h2 style={{ fontSize: 32, margin: 0 }}>Aguala</h2>
-        <p style={{ fontSize: 16, opacity: 0.8 }}>一站式AI视觉创作平台</p>
-      </div>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .login-tabs .ant-tabs-tab {
+          color: rgba(255, 255, 255, 0.6) !important;
+        }
+        .login-tabs .ant-tabs-tab-active {
+          color: #fff !important;
+        }
+        .login-tabs .ant-tabs-ink-bar {
+          background: #6c5ce7 !important;
+        }
+        .login-tabs .ant-tabs-tab:hover {
+          color: #fff !important;
+        }
+        .login-tabs .ant-input,
+        .login-tabs .ant-input-affix-wrapper {
+          background: rgba(255, 255, 255, 0.05) !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+          color: #fff !important;
+          border-radius: 12px !important;
+        }
+        .login-tabs .ant-input::placeholder {
+          color: rgba(255, 255, 255, 0.3) !important;
+        }
+        .login-tabs .ant-input-group-addon {
+          background: rgba(255, 255, 255, 0.05) !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+          color: rgba(255, 255, 255, 0.6) !important;
+          border-radius: 12px 0 0 12px !important;
+        }
+        .login-tabs .ant-checkbox-wrapper {
+          color: rgba(255, 255, 255, 0.6) !important;
+        }
+        .login-tabs .ant-checkbox-wrapper a {
+          color: #a29bfe !important;
+        }
+        .login-tabs .ant-divider {
+          border-color: rgba(255, 255, 255, 0.08) !important;
+        }
+        .login-tabs .ant-divider-inner-text {
+          color: rgba(255, 255, 255, 0.3) !important;
+        }
+        .login-tabs .ant-btn-default {
+          color: rgba(255, 255, 255, 0.6) !important;
+          border-color: rgba(255, 255, 255, 0.08) !important;
+        }
+        .login-tabs .ant-btn-default:hover {
+          color: #fff !important;
+          border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        .login-tabs .ant-btn-primary {
+          background: linear-gradient(135deg, #6c5ce7, #a29bfe) !important;
+          border: none !important;
+          border-radius: 12px !important;
+        }
+        .login-tabs .ant-btn-primary:hover {
+          opacity: 0.85 !important;
+        }
+        .login-tabs .ant-btn-circle {
+          background: rgba(255, 255, 255, 0.05) !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        .login-tabs .ant-btn-circle:hover {
+          background: rgba(255, 255, 255, 0.12) !important;
+        }
+        .login-tabs::-webkit-scrollbar {
+          width: 4px;
+        }
+        .login-tabs::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .login-tabs::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 4px;
+        }
+      `}</style>
     </div>
   );
 }
