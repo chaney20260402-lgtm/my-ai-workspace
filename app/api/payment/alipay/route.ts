@@ -53,6 +53,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`📤 手动调用支付宝支付: ${orderId}, 金额: ${amount}, 主题: ${subject}`);
 
+    // ---------- 生成正确格式的时间戳 (yyyy-MM-dd HH:mm:ss) ----------
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timestamp = 
+      now.getFullYear() + '-' +
+      pad(now.getMonth() + 1) + '-' +
+      pad(now.getDate()) + ' ' +
+      pad(now.getHours()) + ':' +
+      pad(now.getMinutes()) + ':' +
+      pad(now.getSeconds());
+
     // 1. 构建请求参数（公共参数）
     const params: Record<string, string> = {
       app_id: appId,
@@ -60,7 +71,7 @@ export async function POST(request: NextRequest) {
       format: 'JSON',
       charset: 'utf-8',
       sign_type: 'RSA2',
-      timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ''), // 格式: yyyy-MM-dd HH:mm:ss
+      timestamp: timestamp,  // ← 使用正确格式的时间戳
       version: '1.0',
       notify_url: notifyUrl,
       return_url: returnUrl,
