@@ -1,6 +1,4 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage, List, Tag, Space, Upload } from 'antd';
 import { DeleteOutlined, FilePdfOutlined, HistoryOutlined, PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import JSZip from 'jszip';
@@ -13,10 +11,10 @@ interface ImageGeneratorProps {
   initialModel?: string;
   initialSize?: string;
   initialAspectRatio?: string;
-  initialImages?: GeneratedImage[];                        // 新增：初始图片列表
+  initialImages?: GeneratedImage[];
   onGenerateSuccess?: (imageUrl: string) => void;
   onPromptChange?: (prompt: string) => void;
-  onImagesChange?: (images: GeneratedImage[]) => void;     // 新增：图片列表变化回调
+  onImagesChange?: (images: GeneratedImage[]) => void;
 }
 
 interface GeneratedImage {
@@ -91,12 +89,6 @@ const modelOptions = [
   { value: 'seedream-5.0-lite', label: '✨ Seedream 5.0 Lite' },
   { value: 'seedream-4.5', label: '✨ Seedream 4.5' },
   { value: 'seedream-4.0', label: '✨ Seedream 4.0' },
-  { value: 'wan-2.7', label: '🌊 Wan 2.7' },
-  { value: 'wan-2.7-pro', label: '🌊 Wan 2.7 Pro' },
-  { value: 'wan-2.6', label: '🌊 Wan 2.6' },
-  { value: 'qwen-edit-max', label: '✏️ Qwen Edit Max' },
-  { value: 'midjourney-v8.1', label: '🎨 MidJourney V8.1' },
-  { value: 'midjourney-niji', label: '🎨 MidJourney Niji' },
 ];
 
 export default function ImageGenerator({
@@ -126,6 +118,9 @@ export default function ImageGenerator({
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [showHistory, setShowHistory] = useState(true);
 
+  // ---------- 新增 ref 用于防止无限循环 ----------
+  const prevPromptRef = useRef<string>('');
+
   // 当数量变化时，调整prompts数组长度
   useEffect(() => {
     setPrompts(prev => {
@@ -137,7 +132,7 @@ export default function ImageGenerator({
     });
   }, [quantity]);
 
-  // 当 initialPrompt 变化时，更新第一个提示词
+  // 当 initialPrompt 变化时，更新第一个提示词（只依赖 initialPrompt）
   useEffect(() => {
     if (initialPrompt && prompts[0] !== initialPrompt) {
       setPrompts(prev => {
@@ -148,10 +143,12 @@ export default function ImageGenerator({
     }
   }, [initialPrompt]);
 
-  // 提示词变化时通知父组件
+  // 提示词变化时通知父组件（防无限循环）
   useEffect(() => {
-    if (onPromptChange && prompts.length > 0 && prompts[0] !== undefined) {
-      onPromptChange(prompts[0]);
+    const currentPrompt = prompts[0] || '';
+    if (onPromptChange && currentPrompt !== prevPromptRef.current) {
+      prevPromptRef.current = currentPrompt;
+      onPromptChange(currentPrompt);
     }
   }, [prompts, onPromptChange]);
 
@@ -199,7 +196,7 @@ export default function ImageGenerator({
     setReferenceImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  // ---------- 更新图片列表并通知父组件 ----------
+  // 更新图片列表并通知父组件
   const updateImages = (newImages: GeneratedImage[]) => {
     setGeneratedImages(newImages);
     if (onImagesChange) {
@@ -269,7 +266,6 @@ export default function ImageGenerator({
           if (onGenerateSuccess) {
             onGenerateSuccess(data.imageUrl);
           }
-          // 保存全局历史
           saveHistory({
             id: crypto.randomUUID(),
             prompt: fullPrompt,
@@ -287,7 +283,6 @@ export default function ImageGenerator({
       }
     }
 
-    // 更新工作流图片列表（合并新旧）
     const updatedList = [...generatedImages, ...newImages];
     updateImages(updatedList);
     if (newImages.length > 0) {
@@ -303,7 +298,6 @@ export default function ImageGenerator({
       return;
     }
 
-    // 设置加载状态
     const updatedList = generatedImages.map((img) =>
       img.id === imageId ? { ...img, loading: true } : img
     );
@@ -344,7 +338,6 @@ export default function ImageGenerator({
         } else {
           message.error('重新生成失败: ' + (data.error || '未知错误'));
         }
-        // 恢复loading状态
         const restored = generatedImages.map((img) =>
           img.id === imageId ? { ...img, loading: false } : img
         );
@@ -495,7 +488,6 @@ export default function ImageGenerator({
         overflow: 'auto',
       }}}
     >
-      {/* 控制栏 */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
         <Select
           value={model}
@@ -632,20 +624,17 @@ export default function ImageGenerator({
         ))}
       </div>
 
-      {/* 生成按钮 */}
       <Button type="primary" onClick={handleGenerateAll} loading={loading} style={{ width: 160 }}>
         一键生成 {prompts.filter(p => p.trim().length > 0).length} 张
       </Button>
       {loading && <Spin tip="生成中，请稍候..." style={{ marginLeft: '12px' }} />}
 
-      {/* 历史记录按钮 */}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
         <Button icon={<HistoryOutlined />} onClick={() => setShowHistory(!showHistory)}>
           {showHistory ? '隐藏历史' : '显示历史'}
         </Button>
       </div>
 
-      {/* 历史列表 */}
       {showHistory && history.length > 0 && (
         <div style={{ marginTop: 16, maxHeight: 200, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8, padding: 8 }}>
           <Divider orientation="left" style={{ margin: '0 0 8px 0', fontSize: 14 }}>📋 工作流历史</Divider>
@@ -677,7 +666,6 @@ export default function ImageGenerator({
         </div>
       )}
 
-      {/* 生成结果 */}
       {generatedImages.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <Divider orientation="left" style={{ margin: '8px 0 16px 0' }}>
@@ -740,14 +728,11 @@ export default function ImageGenerator({
                       rows={2}
                       value={img.prompt}
                       onChange={(e) => {
-                        // 更新本地图片的提示词（不影响父组件）
                         setGeneratedImages(prev =>
                           prev.map(item =>
                             item.id === img.id ? { ...item, prompt: e.target.value } : item
                           )
                         );
-                        // 注意：此处修改提示词不会自动保存到工作流，因为未调用 onImagesChange
-                        // 如果需要保存，可以在这里调用 onImagesChange
                       }}
                       placeholder="修改提示词重新生成"
                       style={{ resize: 'none' }}

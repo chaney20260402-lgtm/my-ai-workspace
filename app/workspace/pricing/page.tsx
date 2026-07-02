@@ -4,13 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Button, Typography, Divider, Space, Tag, message } from 'antd';
 import { CheckOutlined, CrownOutlined, RocketOutlined, StarOutlined } from '@ant-design/icons';
 import { useCredits } from '@/app/contexts/CreditsContext';  // ← 导入全局积分
+import { useSession } from 'next-auth/react';  
 
 const { Title, Text } = Typography;
 
 // 会员套餐数据（保持不变）
 const membershipPlans = [
   {
-    id: 'free',
+    id: 'plan_basic', 
     name: '体验包',
     price: 0,
     currency: '¥',
@@ -35,7 +36,7 @@ const membershipPlans = [
     buttonColor: '#1890ff',
   },
   {
-    id: 'pro',
+     id: 'plan_pro',   
     name: '进阶包',
     price: 200,
     currency: '¥',
@@ -60,7 +61,7 @@ const membershipPlans = [
     buttonColor: '#1890ff',
   },
   {
-    id: 'business',
+     id: 'plan_enterprise',
     name: '专业包',
     price: 1000,
     currency: '¥',
@@ -88,15 +89,15 @@ const membershipPlans = [
 
 // 积分充值套餐
 const creditPlans = [
-  { id: 'credit1', amount: 200, credits: 1000 },
-  { id: 'credit2', amount: 800, credits: 5000 },
-  { id: 'credit3', amount: 1500, credits: 10000 },
+  { id: 'recharge_1000', amount: 200, credits: 1000 },   // ✅ 改为 'recharge_1000'
+  { id: 'recharge_5000', amount: 800, credits: 5000 },   // ✅ 改为 'recharge_5000'
+  { id: 'recharge_10000', amount: 1500, credits: 10000 }, // ✅ 改为 'recharge_10000'
 ];
 
 export default function PricingPage() {
   // ---------- 使用全局积分状态 ----------
   const { credits, setCredits, refreshCredits } = useCredits();
-
+  const { data: session } = useSession(); 
   const [loading, setLoading] = useState(false);
 
   // 页面加载时刷新积分
@@ -106,34 +107,55 @@ export default function PricingPage() {
 
   // ---------- 支付宝支付（保持不变） ----------
   const handleAlipayPayment = async (plan: any, type: 'recharge' | 'membership' = 'recharge') => {
-    setLoading(true);
-    try {
-      const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const response = await fetch('/api/payment/alipay', {
+    if (!session?.user?.phone) {
+      message.warning('请先登录');
+      return;
+    }
+  setLoading(true);
+  try {
+    console.log('创建订单请求:', { planId: plan.id, userId: session.user.phone });
+
+    // 1. 先创建订单
+    const orderRes = await fetch('/api/payment/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId,
-          amount: plan.price,
-          subject: type === 'recharge' ? `充值 ${plan.credits} 积分` : `开通${plan.name}会员`,
-          credits: plan.credits || 0,
+          planId: plan.id,
+          userId: session.user.phone,
+        }),
+      });
+      const orderData = await orderRes.json();
+      if (!orderData.success) {
+        message.error(orderData.error || '创建订单失败');
+        return;
+      }
+
+    // 2. 再调用支付接口
+    const response = await fetch('/api/payment/alipay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: orderData.orderId,
+          amount: orderData.amount,
+          subject: orderData.subject,
+          credits: orderData.credits,
           type,
         }),
       });
       const data = await response.json();
-      if (data.success && data.payUrl) {
-        // 跳转到支付宝支付页面
-        window.location.href = data.payUrl;
-      } else {
-        message.error(data.error || '支付失败');
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('支付请求失败:', error);
-      message.error('支付请求失败，请稍后重试');
-      setLoading(false);
+    if (data.success && data.payUrl) {
+      // ✅ 直接跳转到支付宝支付页面（支付完成后会回调 return_url）
+      window.location.href = data.payUrl;
+    } else {
+      message.error(data.error || '支付失败');
     }
-  };
+  } catch (error) {
+    console.error('支付失败:', error);
+    message.error('支付失败，请重试');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ---------- 免费套餐开通（使用 /api/recharge） ----------
   const handleFreePlan = async (plan: any) => {

@@ -1,3 +1,4 @@
+// lib/credits.ts
 import { getRedis } from './redis';
 
 /**
@@ -26,7 +27,7 @@ export async function checkAndDeductCredits(
   // 写入积分变动记录（消耗）
   const recordKey = `credit_records:${userId}`;
   const record = JSON.stringify({
-    amount: -cost,          // 负数表示消耗
+    amount: -cost,
     type: 'consume',
     description: reason || `消耗 ${cost} 积分`,
     createdAt: new Date().toISOString(),
@@ -55,10 +56,9 @@ export async function addCredits(
   const newCredits = currentCredits + amount;
   await redis.set(userKey, String(newCredits));
 
-  // ---- 新增：写入积分变动记录（充值） ----
   const recordKey = `credit_records:${userId}`;
   const record = JSON.stringify({
-    amount: amount,          // 正数表示充值
+    amount: amount,
     type: 'recharge',
     description: reason || `充值 ${amount} 积分`,
     createdAt: new Date().toISOString(),
@@ -81,10 +81,25 @@ export async function getCredits(userId: string): Promise<number> {
 
 /**
  * 获取用户的积分变动记录（最近 N 条）
+ * 修复：增加容错，过滤掉无效的 JSON 记录，避免 API 崩溃
  */
 export async function getCreditRecords(userId: string, limit: number = 30): Promise<any[]> {
   const redis = getRedis();
   const recordKey = `credit_records:${userId}`;
-  const records = await redis.lrange(recordKey, 0, limit - 1);
-  return records.map((r) => JSON.parse(r));
+  try {
+    const records = await redis.lrange(recordKey, 0, limit - 1);
+    return records
+      .map((r) => {
+        try {
+          return JSON.parse(r);
+        } catch (e) {
+          console.error('解析积分记录失败，原始数据:', r, e);
+          return null; // 标记为无效记录
+        }
+      })
+      .filter((item) => item !== null); // 过滤掉无效记录
+  } catch (error) {
+    console.error('读取积分记录失败:', error);
+    return []; // 发生任何错误都返回空数组，避免前端报错
+  }
 }

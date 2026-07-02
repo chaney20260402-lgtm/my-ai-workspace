@@ -34,7 +34,6 @@ export default function GeneratePage() {
   const [editedName, setEditedName] = useState('');
   const [workflowImages, setWorkflowImages] = useState<any[]>([]);
 
-  // 加载工作流
   useEffect(() => {
     if (workflowId) {
       const saved = localStorage.getItem('workflows');
@@ -53,7 +52,6 @@ export default function GeneratePage() {
     setLoading(false);
   }, [workflowId]);
 
-  // 保存工作流名称
   const saveWorkflowName = (newName: string) => {
     if (!workflow) {
       const newWorkflow: Workflow = {
@@ -90,7 +88,6 @@ export default function GeneratePage() {
     }
   };
 
-  // 更新 prompt
   const updateWorkflowPrompt = (prompt: string) => {
     if (!workflow) return;
     const updatedWorkflow = { ...workflow, prompt };
@@ -107,7 +104,6 @@ export default function GeneratePage() {
     }
   };
 
-  // 更新图片列表
   const updateWorkflowImages = (images: any[]) => {
     setWorkflowImages(images);
     if (!workflow) return;
@@ -167,7 +163,6 @@ export default function GeneratePage() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Layout>
-        {/* 顶部工具栏 */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {isEditingName ? (
@@ -196,14 +191,52 @@ export default function GeneratePage() {
 
         <Content style={{ padding: '30px', minHeight: 'calc(100vh - 64px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', background: '#f5f7fa' }}>
           <div style={{ width: '100%', maxWidth: 1500, margin: '0 auto' }}>
+            {workflowImages.length > 0 && (
+              <div style={{ marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 500, fontSize: 14 }}>📸 工作流历史图片</span>
+                  <span style={{ color: '#999', fontSize: 12 }}>共 {workflowImages.length} 张</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                  {workflowImages.map((img, idx) => (
+                    <div key={img.id} style={{ flexShrink: 0, position: 'relative' }}>
+                      <img
+                        src={img.url}
+                        alt={`历史图片 ${idx+1}`}
+                        style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #e8e8e8' }}
+                        onClick={() => {
+                          message.info(`提示词: ${img.prompt.substring(0, 50)}...`);
+                        }}
+                      />
+                      <div style={{ position: 'absolute', bottom: 2, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '0 4px', borderRadius: 4 }}>
+                        #{idx+1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <ImageGenerator
               initialPrompt={workflow?.prompt || ''}
               initialModel={selectedModel}
               initialSize={selectedSize}
               initialAspectRatio={selectedRatio}
               initialImages={workflowImages}
-              onPromptChange={(prompt) => { if (workflow && prompt) updateWorkflowPrompt(prompt); }}
-              onImagesChange={(images) => updateWorkflowImages(images)}
+              onPromptChange={(prompt) => {
+                // 只有真正变化时才更新
+                if (workflow && prompt && workflow.prompt !== prompt) {
+                  updateWorkflowPrompt(prompt);
+                }
+              }}
+              onImagesChange={(images) => {
+                // 比较是否真的变化（避免无限循环）
+                const current = workflow?.generatedImages || [];
+                if (images.length !== current.length || 
+                    (images.length > 0 && current.length > 0 && images[0]?.url !== current[0]?.url)) {
+                  updateWorkflowImages(images);
+                }
+              }}
             />
           </div>
         </Content>

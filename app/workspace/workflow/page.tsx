@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Input, Form, Select, Modal, List, message, Typography, Space, Empty, Row, Col } from 'antd';
+import { Button, Card, message, Typography, Space, Empty, Row, Col } from 'antd';
 import { DeleteOutlined, PlayCircleOutlined, LeftOutlined, PlusOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 
@@ -15,6 +15,7 @@ interface Workflow {
   aspectRatio: string;
   prompt: string;
   createdAt: string;
+  generatedImages?: any[];
 }
 
 export default function WorkflowPage() {
@@ -24,29 +25,39 @@ export default function WorkflowPage() {
   useEffect(() => {
     const saved = localStorage.getItem('workflows');
     if (saved) {
-      setWorkflows(JSON.parse(saved));
+      try {
+        const parsed = JSON.parse(saved);
+        const withImages = parsed.map((w: any) => ({
+          ...w,
+          generatedImages: w.generatedImages || [],
+        }));
+        setWorkflows(withImages);
+      } catch (e) {
+        console.error('解析工作流失败', e);
+        setWorkflows([]);
+      }
     }
   }, []);
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // 只在删除按钮阻止冒泡
     const updated = workflows.filter((item) => item.id !== id);
     setWorkflows(updated);
     localStorage.setItem('workflows', JSON.stringify(updated));
     message.success('已删除');
   };
 
-  const handleRun = (id: number) => {
+  const handleRun = (id: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation(); // 运行按钮也阻止冒泡，但不影响卡片点击
     router.push(`/workspace/generate?workflowId=${id}`);
   };
 
-  // 点击 + 号，跳转到新建工作流
   const handleCreateNew = () => {
     router.push('/workspace/generate');
   };
 
   return (
     <div style={{ padding: '24px' }}>
-      {/* 返回按钮 + 标题行 */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
         <Button
           onClick={() => window.history.back()}
@@ -61,9 +72,7 @@ export default function WorkflowPage() {
         </span>
       </div>
 
-      {/* 工作流网格 */}
       <Row gutter={[16, 16]}>
-        {/* + 号卡片（固定在首位） */}
         <Col xs={24} sm={12} md={8} lg={6}>
           <Card
             hoverable
@@ -76,7 +85,6 @@ export default function WorkflowPage() {
               border: '2px dashed #d9d9d9',
               borderRadius: '16px',
               cursor: 'pointer',
-              transition: 'all 0.3s',
             }}
             bodyStyle={{
               display: 'flex',
@@ -85,7 +93,6 @@ export default function WorkflowPage() {
               justifyContent: 'center',
               height: '100%',
               minHeight: 240,
-              width: '100%',
             }}
             onClick={handleCreateNew}
           >
@@ -94,22 +101,19 @@ export default function WorkflowPage() {
           </Card>
         </Col>
 
-        {/* 工作流卡片列表 */}
         {workflows.map((item) => (
           <Col key={item.id} xs={24} sm={12} md={8} lg={6}>
             <Card
               hoverable
               onClick={() => handleRun(item.id)}
-              title={
-                <span style={{ fontSize: 15, fontWeight: 600 }}>{item.name}</span>
-              }
+              title={<span style={{ fontSize: 15, fontWeight: 600 }}>{item.name}</span>}
               extra={
-                <Space size={4} onClick={(e) => e.stopPropagation()}>
+                <Space size={4}>
                   <Button
                     type="text"
                     size="small"
                     icon={<PlayCircleOutlined />}
-                    onClick={(e) => { e.stopPropagation(); handleRun(item.id); }}
+                    onClick={(e) => handleRun(item.id, e)}
                     style={{ color: '#1677ff' }}
                   />
                   <Button
@@ -117,7 +121,7 @@ export default function WorkflowPage() {
                     size="small"
                     danger
                     icon={<DeleteOutlined />}
-                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                    onClick={(e) => handleDelete(item.id, e)}
                   />
                 </Space>
               }
@@ -127,7 +131,6 @@ export default function WorkflowPage() {
                 flexDirection: 'column',
                 borderRadius: '12px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                transition: 'all 0.3s',
                 cursor: 'pointer',
               }}
               bodyStyle={{
@@ -161,6 +164,18 @@ export default function WorkflowPage() {
                 >
                   <strong>提示词：</strong>{item.prompt || '（未填写）'}
                 </p>
+                {item.generatedImages && item.generatedImages.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img
+                      src={item.generatedImages[0].url}
+                      alt="预览"
+                      style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                    />
+                    <span style={{ fontSize: 12, color: '#999' }}>
+                      共 {item.generatedImages.length} 张图片
+                    </span>
+                  </div>
+                )}
               </div>
               <div style={{ marginTop: '12px', fontSize: 12, color: '#bbb', borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                 创建于：{new Date(item.createdAt).toLocaleString()}
@@ -170,7 +185,6 @@ export default function WorkflowPage() {
         ))}
       </Row>
 
-      {/* 空状态 */}
       {workflows.length === 0 && (
         <div style={{ textAlign: 'center', marginTop: 48 }}>
           <Empty description="暂无工作流，点击左上角 + 号创建一个吧" />

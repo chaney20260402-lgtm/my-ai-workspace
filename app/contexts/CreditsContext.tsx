@@ -1,34 +1,35 @@
+// app/contexts/CreditsContext.tsx
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 interface CreditsContextType {
-  credits: number | null;
-  setCredits: (credits: number) => void;
+  credits: number;
+  setCredits: (v: number) => void;
   refreshCredits: () => Promise<void>;
 }
 
-const CreditsContext = createContext<CreditsContextType | undefined>(undefined);
+const CreditsContext = createContext<CreditsContextType>({
+  credits: 0,
+  setCredits: () => {},
+  refreshCredits: async () => {},
+});
 
-export function CreditsProvider({ children }: { children: ReactNode }) {
-  const [credits, setCredits] = useState<number | null>(null);
+export function CreditsProvider({ children }: { children: React.ReactNode }) {
+  const [credits, setCredits] = useState(0);
 
-  // 从服务端获取最新积分（用于页面初始化或手动刷新）
   const refreshCredits = async () => {
     try {
       const res = await fetch('/api/user/credits');
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+      if (data.credits !== undefined) {
         setCredits(data.credits);
-      } else {
-        console.error('获取积分失败:', res.status);
       }
     } catch (error) {
-      console.error('获取积分异常:', error);
+      console.error('刷新积分失败:', error);
     }
   };
 
-  // 首次加载时自动获取积分
   useEffect(() => {
     refreshCredits();
   }, []);
@@ -40,10 +41,4 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useCredits() {
-  const context = useContext(CreditsContext);
-  if (!context) {
-    throw new Error('useCredits must be used within a CreditsProvider');
-  }
-  return context;
-}
+export const useCredits = () => useContext(CreditsContext);
