@@ -5,31 +5,8 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getRedis } from '@/lib/redis';
 import { createRequire } from 'module';
 
-let alipaySdkInstance: any = null;
-
-function getAlipaySdk() {
-  if (!alipaySdkInstance) {
-    const require = createRequire(import.meta.url);
-    const { AlipaySdk } = require('alipay-sdk');
-    const privateKey = process.env.ALIPAY_PRIVATE_KEY;
-    const publicKey = process.env.ALIPAY_PUBLIC_KEY;
-    if (!privateKey || !publicKey) {
-      throw new Error('支付宝密钥未配置');
-    }
-    alipaySdkInstance = new AlipaySdk({
-      appId: process.env.ALIPAY_APP_ID!,
-      gateway: process.env.ALIPAY_GATEWAY!,
-      privateKey: privateKey.replace(/\\n/g, '\n'),
-      alipayPublicKey: publicKey.replace(/\\n/g, '\n'),
-      timeout: 30000, // 30秒超时
-    });
-  }
-  return alipaySdkInstance;
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const alipaySdk = getAlipaySdk();
     const body = await request.json();
     console.log('📥 收到支付请求，参数:', body);
 
@@ -49,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
     const userId = session.user.phone;
 
-    // 确保订单存在（如果没有则创建，兼容模拟模式）
+    // 确保订单存在
     const redis = getRedis();
     const orderKey = `order:${orderId}`;
     let orderData = await redis.get(orderKey);
@@ -66,14 +43,71 @@ export async function POST(request: NextRequest) {
     }
     const order = JSON.parse(orderData);
 
-    // 验证订单用户
     if (order.userId !== userId) {
       console.error(`❌ 订单用户不匹配: ${order.userId} vs ${userId}`);
       return NextResponse.json({ error: '订单用户不匹配' }, { status: 403 });
     }
 
-    // 调用支付宝统一收单接口
+    // ========== 🧪 模拟支付模式 ==========
+    if (process.env.MOCK_PAYMENT === 'true') {
+      console.log('⚠️ 模拟支付模式已启用，跳过真实支付宝调用');
+      const { addCredits } = await import('@/lib/credits');
+      await addCredits(userId, credits, `模拟支付: ${subject}`);
+      await redis.setex(`order_processed:${orderId}`, 86400, '1');
+      console.log(`✅ 模拟支付成功，用户 ${userId} 获得 ${credits} 积分`);
+      return NextResponse.json({
+        success: true,
+        payUrl: process.env.ALIPAY_RETURN_URL || 'https://www.aguala.cn/workspace/pricing?payment=success',
+        mock: true,
+      });
+    }
+
+    // ========== 读取环境变量（每次重新读取，不缓存） ==========
+    const appId = process.env.ALIPAY_APP_ID;
+    const gateway = process.env.ALIPAY_GATEWAY;
+    const privateKeyRaw = process.env.ALIPAY_PRIVATE_KEY;
+    const publicKeyRaw = process.env.ALIPAY_PUBLIC_KEY;
+
+    console.log('🔍 环境变量检查:');
+    console.log('  APP_ID:', appId ? '已设置' : '未设置');
+    console.log('  GATEWAY:', gateway ? '已设置' : '未设置');
+    console.log('  PRIVATE_KEY:', privateKeyRaw ? `已设置（长度 ${privateKeyRaw.length}）` : '未设置');
+    console.log('  PUBLIC_KEY:', publicKeyRaw ? `已设置（长度 ${publicKeyRaw.length}）` : '未设置');
+
+    if (!appId || !gateway || !privateKeyRaw || !publicKeyRaw) {
+      console.error('❌ 环境变量缺失！');
+      return NextResponse.json({ error: '服务器配置错误：环境变量缺失' }, { status: 500 });
+    }
+
+    // 处理可能的转义换行符
+    const privateKey = privateKeyRaw.includes('\\n') ? privateKeyRaw.replace(/\\n/g, '\n') : privateKeyRaw;
+    const publicKey = publicKeyRaw.includes('\\n') ? publicKeyRaw.replace(/\\n/g, '\n') : publicKeyRaw;
+
+    console.log('🔑 私钥格式:', {
+      hasBegin: privateKey.includes('-----BEGIN PRIVATE KEY-----'),
+      hasEnd: privateKey.includes('-----END PRIVATE KEY-----'),
+      preview: privateKey.substring(0, 50) + '...'
+    });
+    console.log('🔑 公钥格式:', {
+      hasBegin: publicKey.includes('-----BEGIN PUBLIC KEY-----'),
+      hasEnd: publicKey.includes('-----END PUBLIC KEY-----'),
+      preview: publicKey.substring(0, 50) + '...'
+    });
+
+    // ========== 动态导入 alipay-sdk ==========
+    const require = createRequire(import.meta.url);
+    const { AlipaySdk } = require('alipay-sdk');
+
+    const alipaySdk = new AlipaySdk({
+      appId: appId,
+      gateway: gateway,
+      privateKey: privateKey,
+      alipayPublicKey: publicKey,
+      timeout: 30000,
+    });
+
     console.log(`📤 调用支付宝支付: ${orderId}, 金额: ${amount}, 主题: ${subject}`);
+
     const result = await alipaySdk.exec('alipay.trade.page.pay', {
       bizContent: {
         out_trade_no: orderId,
@@ -99,7 +133,10 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ 支付宝支付创建失败:', error);
     return NextResponse.json(
-      { error: error.message || '支付创建失败' },
+      {
+        error: error.message || '支付创建失败',
+        detail: error.responseDataRaw || '无详细信息'
+      },
       { status: 500 }
     );
   }
