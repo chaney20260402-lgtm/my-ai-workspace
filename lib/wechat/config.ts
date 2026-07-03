@@ -7,4 +7,5 @@ export const wechatPayConfig = {
   privateKey: process.env.WXPAY_PRIVATE_KEY!,
   platformCert: process.env.WXPAY_PLATFORM_CERT!,
   notifyUrl: process.env.WXPAY_NOTIFY_URL!,
+  serialNo: process.env.WXPAY_SERIAL_NO!, 
 };

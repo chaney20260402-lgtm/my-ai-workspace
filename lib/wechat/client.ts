@@ -16,7 +16,8 @@ export async function wechatRequest(
     path,
     bodyStr,
     wechatPayConfig.privateKey,
-    wechatPayConfig.mchid
+    wechatPayConfig.mchid,
+    wechatPayConfig.serialNo   // ← 注意：末尾没有逗号
   );
 
   const response = await fetch(url, {
