@@ -6,6 +6,7 @@ import { CheckOutlined, CrownOutlined, RocketOutlined, StarOutlined } from '@ant
 import { useCredits } from '@/app/contexts/CreditsContext';
 import { useSession } from 'next-auth/react';
 
+
 const { Title, Text } = Typography;
 
 // 会员套餐数据
@@ -99,6 +100,7 @@ export default function PricingPage() {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [showCuteModal, setShowCuteModal] = useState(false);
 
   // ========== 支付弹窗状态 ==========
   const [paymentModal, setPaymentModal] = useState<{
@@ -242,9 +244,14 @@ export default function PricingPage() {
     const data = await res.json();
     if (res.ok) {
       setCredits(data.credits);
-      message.success(`成功开通${plan.name}！获得 ${plan.credits} 积分，当前积分：${data.credits}`);
+      message.success(`🎉 成功开通${plan.name}！获得 ${plan.credits} 积分，当前积分：${data.credits}`);
     } else {
-      message.error(data.error || '开通失败，请重试');
+      // ✅ 检测到“已领取”错误，显示可爱弹窗
+      if (data.error?.includes('已领取过体验包')) {
+        setShowCuteModal(true);
+      } else {
+        message.error(data.error || '开通失败，请重试');
+      }
     }
   } catch (error) {
     console.error('开通失败:', error);
@@ -461,6 +468,44 @@ export default function PricingPage() {
           </div>
         </div>
       )}
+         <Modal
+        open={showCuteModal}
+        footer={null}
+        closable={false}
+        centered
+        width={380}
+        maskClosable={false}
+        bodyStyle={{
+          padding: '32px 24px',
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, #fff5f5 0%, #fef3e2 100%)',
+          borderRadius: '16px',
+        }}
+      >
+        <div style={{ fontSize: 64, marginBottom: 8 }}>🎈</div>
+        <h2 style={{ color: '#ff6b6b', marginBottom: 8, fontSize: 22 }}>
+          哎呀，您已经领取过啦！
+        </h2>
+        <p style={{ color: '#666', fontSize: 15, lineHeight: 1.6, marginBottom: 20 }}>
+          每个用户只能领取一次体验包哦～<br />
+          试试其他套餐吧！💪
+        </p>
+        <Button
+          type="primary"
+          size="large"
+          onClick={() => setShowCuteModal(false)}
+          style={{
+            background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)',
+            border: 'none',
+            borderRadius: '20px',
+            padding: '0 40px',
+            height: '44px',
+            fontSize: '16px',
+          }}
+        >
+          好的，知道啦 ✨
+        </Button>
+      </Modal>
     </div>
   );
 }
