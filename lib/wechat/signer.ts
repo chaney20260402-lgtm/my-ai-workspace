@@ -1,5 +1,5 @@
 // lib/wechat/signer.ts
-import { createSign } from 'crypto';
+import { createSign, createVerify } from 'crypto';
 
 export function signRequest(
   method: string,
@@ -21,4 +21,21 @@ export function signRequest(
     timestamp,
     nonce,
   };
+}
+
+/**
+ * 验证微信支付回调签名（平台证书验签）
+ */
+export function verifySignature(
+  body: string,
+  timestamp: string,
+  nonce: string,
+  signature: string,
+  platformCert: string
+): boolean {
+  const message = `${timestamp}\n${nonce}\n${body}\n`;
+  const verify = createVerify('RSA-SHA256');
+  verify.update(message);
+  verify.end();
+  return verify.verify(platformCert, signature, 'base64');
 }
