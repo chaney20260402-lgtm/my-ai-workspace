@@ -228,31 +228,31 @@ export default function PricingPage() {
   };
 
   // ========== 免费套餐开通 ==========
-  const handleFreePlan = async (plan: any) => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/recharge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: plan.credits,
-          plan: plan.name,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCredits(data.credits);
-        message.success(`成功开通${plan.name}！获得 ${plan.credits} 积分，当前积分：${data.credits}`);
-      } else {
-        message.error(data.error || '开通失败，请重试');
-      }
-    } catch (error) {
-      console.error('开通失败:', error);
-      message.error('网络错误，请重试');
-    } finally {
-      setLoading(false);
+ const handleFreePlan = async (plan: any) => {
+  setLoading(true);
+  try {
+    const res = await fetch('/api/recharge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: plan.credits,
+        plan: plan.name,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setCredits(data.credits);
+      message.success(`成功开通${plan.name}！获得 ${plan.credits} 积分，当前积分：${data.credits}`);
+    } else {
+      message.error(data.error || '开通失败，请重试');
     }
-  };
+  } catch (error) {
+    console.error('开通失败:', error);
+    message.error('网络错误，请重试');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ========== 会员套餐点击处理 ==========
   const handleMembershipPurchase = (plan: any) => {

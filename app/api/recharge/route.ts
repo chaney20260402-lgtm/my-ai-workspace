@@ -1,6 +1,8 @@
+// app/api/recharge/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getRedis } from '@/lib/redis';
 import { addCredits } from '@/lib/credits';
 
 export async function POST(req: NextRequest) {
@@ -9,23 +11,40 @@ export async function POST(req: NextRequest) {
     if (!session?.user?.phone) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
+    const userId = session.user.phone;
 
     const { amount, plan } = await req.json();
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ error: '充值金额无效' }, { status: 400 });
+
+    // 校验参数
+    if (!amount || typeof amount !== 'number') {
+      return NextResponse.json({ error: '无效的积分数量' }, { status: 400 });
     }
 
-    // 调用 addCredits，写入充值记录
-    const newCredits = await addCredits(
-      session.user.phone,
-      amount,
-      plan ? `会员充值（${plan}）` : `充值 ${amount} 积分`
+    const redis = getRedis();
+
+    // ---------- 体验包限制逻辑（含并发优化） ----------
+    // ---------- 体验包限制逻辑（先检查再设置） ----------
+if (plan === '体验包' || plan === '体验会员') {
+  const freeKey = `free_plan:${userId}`;
+  
+  // 先检查是否已领取
+  const alreadyClaimed = await redis.get(freeKey);
+  if (alreadyClaimed) {
+    return NextResponse.json(
+      { error: '您已领取过体验包，不可重复领取' },
+      { status: 400 }
     );
+  }
+  
+  // 未领取，记录领取状态
+  await redis.set(freeKey, '1');
+}
+    // 增加积分
+    const newCredits = await addCredits(userId, amount, plan);
 
     return NextResponse.json({
       success: true,
       credits: newCredits,
-      message: `成功充值 ${amount} 积分`,
     });
   } catch (error: any) {
     console.error('充值失败:', error);
