@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Button, Typography, Divider, Space, Tag, message } from 'antd';
+import { Card, Row, Col, Button, Typography, Divider, Space, Tag, message, Modal, Spin } from 'antd';
 import { CheckOutlined, CrownOutlined, RocketOutlined, StarOutlined } from '@ant-design/icons';
-import { useCredits } from '@/app/contexts/CreditsContext';  // ← 导入全局积分
-import { useSession } from 'next-auth/react';  
+import { useCredits } from '@/app/contexts/CreditsContext';
+import { useSession } from 'next-auth/react';
 
 const { Title, Text } = Typography;
 
-// 会员套餐数据（保持不变）
+// 会员套餐数据
 const membershipPlans = [
   {
-    id: 'plan_basic', 
+    id: 'plan_basic',
     name: '体验包',
     price: 0,
     currency: '¥',
@@ -36,7 +36,7 @@ const membershipPlans = [
     buttonColor: '#1890ff',
   },
   {
-     id: 'plan_pro',   
+    id: 'plan_pro',
     name: '进阶包',
     price: 200,
     currency: '¥',
@@ -61,7 +61,7 @@ const membershipPlans = [
     buttonColor: '#1890ff',
   },
   {
-     id: 'plan_enterprise',
+    id: 'plan_enterprise',
     name: '专业包',
     price: 1000,
     currency: '¥',
@@ -89,34 +89,51 @@ const membershipPlans = [
 
 // 积分充值套餐
 const creditPlans = [
-  { id: 'recharge_1000', amount: 200, credits: 1000 },   // ✅ 改为 'recharge_1000'
-  { id: 'recharge_5000', amount: 800, credits: 5000 },   // ✅ 改为 'recharge_5000'
-  { id: 'recharge_10000', amount: 1500, credits: 10000 }, // ✅ 改为 'recharge_10000'
+  { id: 'recharge_1000', amount: 200, credits: 1000 },
+  { id: 'recharge_5000', amount: 800, credits: 5000 },
+  { id: 'recharge_10000', amount: 1500, credits: 10000 },
 ];
 
 export default function PricingPage() {
-  // ---------- 使用全局积分状态 ----------
   const { credits, setCredits, refreshCredits } = useCredits();
-  const { data: session } = useSession(); 
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [paying, setPaying] = useState(false);
 
-  // 页面加载时刷新积分
+  // ========== 支付弹窗状态 ==========
+  const [paymentModal, setPaymentModal] = useState<{
+    visible: boolean;
+    planId: string;
+    orderId: string;
+    amount: number;
+    subject: string;
+    credits: number;
+  }>({
+    visible: false,
+    planId: '',
+    orderId: '',
+    amount: 0,
+    subject: '',
+    credits: 0,
+  });
+
   useEffect(() => {
     refreshCredits();
   }, []);
 
-  // ---------- 支付宝支付（保持不变） ----------
-  const handleAlipayPayment = async (plan: any, type: 'recharge' | 'membership' = 'recharge') => {
+  // ========== 创建订单并显示支付弹窗 ==========
+  const handlePayment = async (plan: any, type: 'recharge' | 'membership' = 'recharge') => {
     if (!session?.user?.phone) {
       message.warning('请先登录');
       return;
     }
-  setLoading(true);
-  try {
-    console.log('创建订单请求:', { planId: plan.id, userId: session.user.phone });
 
-    // 1. 先创建订单
-    const orderRes = await fetch('/api/payment/order', {
+    setLoading(true);
+    try {
+      console.log('创建订单请求:', { planId: plan.id, userId: session.user.phone });
+
+      // 1. 创建订单
+      const orderRes = await fetch('/api/payment/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,34 +147,87 @@ export default function PricingPage() {
         return;
       }
 
-    // 2. 再调用支付接口
-    const response = await fetch('/api/payment/alipay', {
+      // 2. 显示支付方式选择弹窗
+      setPaymentModal({
+        visible: true,
+        planId: plan.id,
+        orderId: orderData.orderId,
+        amount: orderData.amount,
+        subject: orderData.subject,
+        credits: orderData.credits,
+      });
+    } catch (error) {
+      console.error('创建订单失败:', error);
+      message.error('创建订单失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ========== 支付宝支付 ==========
+  const handlePayWithAlipay = async () => {
+    setPaying(true);
+    try {
+      const response = await fetch('/api/payment/alipay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: orderData.orderId,
-          amount: orderData.amount,
-          subject: orderData.subject,
-          credits: orderData.credits,
-          type,
+          orderId: paymentModal.orderId,
+          amount: paymentModal.amount,
+          subject: paymentModal.subject,
+          credits: paymentModal.credits,
+          type: paymentModal.planId.startsWith('recharge') ? 'recharge' : 'membership',
         }),
       });
       const data = await response.json();
-    if (data.success && data.payUrl) {
-      // ✅ 直接跳转到支付宝支付页面（支付完成后会回调 return_url）
-      window.location.href = data.payUrl;
-    } else {
-      message.error(data.error || '支付失败');
+      if (data.success && data.payUrl) {
+        window.location.href = data.payUrl;
+      } else {
+        message.error(data.error || '支付创建失败');
+      }
+    } catch (error) {
+      console.error('支付宝支付失败:', error);
+      message.error('支付失败，请重试');
+    } finally {
+      setPaying(false);
     }
-  } catch (error) {
-    console.error('支付失败:', error);
-    message.error('支付失败，请重试');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-  // ---------- 免费套餐开通（使用 /api/recharge） ----------
+  // ========== 微信支付 ==========
+  const handlePayWithWechat = async () => {
+    setPaying(true);
+    try {
+      const response = await fetch('/api/payment/wechat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: paymentModal.planId,
+          credits: paymentModal.credits,
+          amount: paymentModal.amount,
+          subject: paymentModal.subject,
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.payUrl) {
+        window.location.href = data.payUrl;
+      } else {
+        message.error(data.error || '支付创建失败');
+      }
+    } catch (error) {
+      console.error('微信支付失败:', error);
+      message.error('支付失败，请重试');
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  // ========== 关闭支付弹窗 ==========
+  const handleCloseModal = () => {
+    setPaymentModal({ ...paymentModal, visible: false });
+    refreshCredits();
+  };
+
+  // ========== 免费套餐开通 ==========
   const handleFreePlan = async (plan: any) => {
     setLoading(true);
     try {
@@ -171,10 +241,8 @@ export default function PricingPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        // ✅ 更新全局积分
         setCredits(data.credits);
         message.success(`成功开通${plan.name}！获得 ${plan.credits} 积分，当前积分：${data.credits}`);
-        // 铃铛会自动显示充值记录（由 /api/recharge 写入）
       } else {
         message.error(data.error || '开通失败，请重试');
       }
@@ -186,18 +254,18 @@ export default function PricingPage() {
     }
   };
 
-  // ---------- 会员套餐点击处理 ----------
+  // ========== 会员套餐点击处理 ==========
   const handleMembershipPurchase = (plan: any) => {
     if (plan.price === 0) {
       handleFreePlan(plan);
     } else {
-      handleAlipayPayment(plan, 'membership');
+      handlePayment(plan, 'membership');
     }
   };
 
-  // ---------- 积分充值点击处理 ----------
+  // ========== 积分充值点击处理 ==========
   const handleCreditRecharge = (plan: any) => {
-    handleAlipayPayment(plan, 'recharge');
+    handlePayment(plan, 'recharge');
   };
 
   return (
@@ -225,16 +293,16 @@ export default function PricingPage() {
                 </Space>
               }
               extra={
-                <Tag color={plan.id === 'business' ? 'gold' : 'blue'}>
-                  {plan.id === 'free' ? '免费' : plan.id === 'pro' ? '推荐' : '旗舰'}
+                <Tag color={plan.id === 'plan_enterprise' ? 'gold' : 'blue'}>
+                  {plan.id === 'plan_basic' ? '免费' : plan.id === 'plan_pro' ? '推荐' : '旗舰'}
                 </Tag>
               }
               style={{
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                borderColor: plan.id === 'business' ? '#faad14' : '#e8e8e8',
-                borderWidth: plan.id === 'business' ? 2 : 1,
+                borderColor: plan.id === 'plan_enterprise' ? '#faad14' : '#e8e8e8',
+                borderWidth: plan.id === 'plan_enterprise' ? 2 : 1,
               }}
               bodyStyle={{
                 flex: 1,
@@ -310,6 +378,89 @@ export default function PricingPage() {
           </Col>
         ))}
       </Row>
+
+      {/* ========== 支付方式选择弹窗 ========== */}
+      <Modal
+        title="选择支付方式"
+        open={paymentModal.visible}
+        onCancel={handleCloseModal}
+        footer={null}
+        maskClosable={false}
+        centered
+      >
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <p style={{ fontSize: 20, marginBottom: 8 }}>支付金额</p>
+          <p style={{ fontSize: 36, fontWeight: 'bold', color: '#1677ff' }}>
+            ¥{paymentModal.amount}
+          </p>
+          <p style={{ color: '#999', marginBottom: 24 }}>{paymentModal.subject}</p>
+          <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+            {/* 支付宝 */}
+            <Button
+              size="large"
+              style={{
+                width: 140,
+                height: 100,
+                flexDirection: 'column',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid #1677ff',
+              }}
+              onClick={handlePayWithAlipay}
+              loading={paying}
+            >
+              <span style={{ fontSize: 32 }}>💳</span>
+              <span>支付宝</span>
+            </Button>
+
+            {/* 微信支付 */}
+            <Button
+              size="large"
+              style={{
+                width: 140,
+                height: 100,
+                flexDirection: 'column',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid #07C160',
+              }}
+              onClick={handlePayWithWechat}
+              loading={paying}
+            >
+              <span style={{ fontSize: 32 }}>💚</span>
+              <span>微信支付</span>
+            </Button>
+          </div>
+          <p style={{ color: '#ccc', fontSize: 12, marginTop: 16 }}>
+            🔒 安全支付
+          </p>
+        </div>
+      </Modal>
+
+      {/* ========== 支付加载遮罩 ========== */}
+      {paying && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <div style={{ background: '#fff', padding: 40, borderRadius: 16, textAlign: 'center' }}>
+            <Spin size="large" />
+            <p style={{ marginTop: 16 }}>正在跳转支付...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
