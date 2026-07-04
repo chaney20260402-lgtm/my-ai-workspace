@@ -1,6 +1,12 @@
 // app/api/send-sms/route.ts
 import { NextResponse } from 'next/server';
+import SMSClient from '@alicloud/sms-sdk';
 import { getRedis } from '@/lib/redis';
+
+const smsClient = new SMSClient({
+  accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.ALIYUN_ACCESS_KEY_SECRET!,
+});
 
 export async function POST(request: Request) {
   try {
@@ -15,20 +21,49 @@ export async function POST(request: Request) {
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // ✅ 存入 Redis，有效期 5 分钟
+    // 存入 Redis，有效期 5 分钟
     const redis = getRedis();
     await redis.setex(`sms:${phone}`, 300, code);
 
     console.log(`📱 验证码 (${phone}): ${code}`);
 
-    // 调用阿里云短信 API 发送短信（保留你原来的逻辑）
-    // const result = await smsClient.sendSMS({...});
+    // 调用阿里云短信 API
+    const result = await smsClient.sendSMS({
+      PhoneNumbers: phone,
+      SignName: '深圳市阿瓜拉科技',
+      TemplateCode: 'SMS_508420079',
+      TemplateParam: JSON.stringify({ code }),
+    });
 
-    return NextResponse.json({ success: true, message: '验证码已发送' });
+    // 处理返回结果
+    if (result.Code === 'OK') {
+      return NextResponse.json({ success: true, message: '验证码已发送' });
+    }
+
+    // 处理常见错误
+    switch (result.Code) {
+      case 'isv.BUSINESS_LIMIT_CONTROL':
+        return NextResponse.json({
+          success: false,
+          message: '发送过于频繁，请稍后再试',
+        }, { status: 429 });
+      case 'isv.MOBILE_NUMBER_ILLEGAL':
+        return NextResponse.json({
+          success: false,
+          message: '手机号格式错误',
+        }, { status: 400 });
+      case 'isv.SMS_SIGNATURE_ILLEGAL':
+        return NextResponse.json({
+          success: false,
+          message: '短信签名未审核，请联系管理员',
+        }, { status: 500 });
+      default:
+        throw new Error(result.Message);
+    }
   } catch (error) {
-    console.error('❌ 错误:', error);
+    console.error('发送失败:', error);
     return NextResponse.json(
-      { success: false, message: '服务器错误' },
+      { success: false, message: '发送失败，请重试' },
       { status: 500 }
     );
   }
