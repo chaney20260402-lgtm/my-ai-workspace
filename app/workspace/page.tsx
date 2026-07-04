@@ -501,7 +501,7 @@ useEffect(() => {
   }
 }
 
-  const handlePhoneLogin = async () => {
+ const handlePhoneLogin = async () => {
   if (!phone || !code) {
     message.warning('请输入手机号和验证码');
     return;
@@ -517,12 +517,19 @@ useEffect(() => {
       code,
       redirect: false,
     });
-    console.log('登录结果:', result); // ← 添加日志
+    console.log('登录结果:', result);
     if (result?.error) {
-      message.error('登录失败：' + result.error);
-    } else {
+      // 处理 NextAuth 的标准错误
+      let errorMsg = result.error;
+      if (errorMsg === 'CredentialsSignin') {
+        errorMsg = '手机号或验证码错误，请重试';
+      }
+      message.error('登录失败：' + errorMsg);
+    } else if (result?.ok) {
       message.success('登录成功！');
       window.location.reload();
+    } else {
+      message.error('登录失败，请稍后重试');
     }
   } catch (error) {
     console.error('登录错误:', error);
@@ -531,7 +538,6 @@ useEffect(() => {
     setLoginLoading(false);
   }
 };
-
   // ---------- 登出 ----------
   const handleLogout = () => {
     signOut({ callbackUrl: '/workspace' });

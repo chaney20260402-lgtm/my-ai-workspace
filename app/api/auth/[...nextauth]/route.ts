@@ -53,43 +53,43 @@ export const authOptions = {
         code: { label: "验证码", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.phone || !credentials?.code) {
-          return null;
-        }
+  if (!credentials?.phone || !credentials?.code) {
+    return null;
+  }
 
-        const phone = credentials.phone.trim();
-        const code = credentials.code.trim();
+  const phone = credentials.phone.trim();
+  const code = credentials.code.trim();
 
-        // 万能验证码
-        if (code === "000000") {
-          return {
-            id: phone,
-            name: phone,
-            phone: phone,
-          };
-        }
+  // 万能验证码
+  if (code === "000000") {
+    return {
+      id: phone,
+      name: phone,
+      phone: phone,
+    };
+  }
 
-        try {
-          const redis = getRedis();
-          const storedCode = await redis.get(`sms:${phone}`);
+  try {
+    const redis = getRedis();
+    const storedCode = await redis.get(`sms:${phone}`);
 
-          if (!storedCode) {
-            throw new Error("请先获取验证码");
-          }
-          if (storedCode !== code) {
-            throw new Error("验证码错误，请重新输入");
-          }
-          await redis.del(`sms:${phone}`);
+    if (!storedCode) {
+      throw new Error("请先获取验证码");
+    }
+    if (storedCode !== code) {
+      throw new Error("验证码错误，请重新输入");
+    }
+    await redis.del(`sms:${phone}`);
 
-          return {
-            id: phone,
-            name: phone,
-            phone: phone,
-          };
-        } catch (error: any) {
-          throw new Error(error.message || "登录失败，请重试");
-        }
-      },
+    return {
+      id: phone,
+      name: phone,
+      phone: phone,
+    };
+  } catch (error: any) {
+    throw new Error(error.message || "登录失败，请重试");
+  }
+}
     }),
   ],
 
