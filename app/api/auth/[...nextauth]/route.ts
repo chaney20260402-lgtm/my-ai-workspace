@@ -1,3 +1,4 @@
+// app/api/auth/[...nextauth]/route.ts
 import NextAuth, { type DefaultSession, type Session } from "next-auth";
 import { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
@@ -9,7 +10,7 @@ declare module "next-auth" {
   interface Session {
     user: {
       phone?: string;
-      id?: string;          // ← 添加 id
+      id?: string;
     } & DefaultSession["user"];
   }
   interface User {
@@ -20,7 +21,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     phone?: string;
-    id?: string;            // ← 添加 id
+    id?: string;
   }
 }
 
@@ -53,43 +54,46 @@ export const authOptions = {
         code: { label: "验证码", type: "text" },
       },
       async authorize(credentials) {
-  if (!credentials?.phone || !credentials?.code) {
-    return null;
-  }
+        // 参数校验
+        if (!credentials?.phone || !credentials?.code) {
+          return null;
+        }
 
-  const phone = credentials.phone.trim();
-  const code = credentials.code.trim();
+        const phone = credentials.phone.trim();
+        const code = credentials.code.trim();
 
-  // 万能验证码
-  if (code === "000000") {
-    return {
-      id: phone,
-      name: phone,
-      phone: phone,
-    };
-  }
+        // 万能验证码（测试用）
+        if (code === "000000") {
+          return {
+            id: phone,
+            name: phone,
+            phone: phone,
+          };
+        }
 
-  try {
-    const redis = getRedis();
-    const storedCode = await redis.get(`sms:${phone}`);
+        // 生产环境验证
+        try {
+          const redis = getRedis();
+          const storedCode = await redis.get(`sms:${phone}`);
+          console.log(`📦 Redis 中存储的验证码: ${storedCode}`);
 
-    if (!storedCode) {
-      throw new Error("请先获取验证码");
-    }
-    if (storedCode !== code) {
-      throw new Error("验证码错误，请重新输入");
-    }
-    await redis.del(`sms:${phone}`);
+          if (!storedCode) {
+            throw new Error("请先获取验证码");
+          }
+          if (storedCode !== code) {
+            throw new Error("验证码错误，请重新输入");
+          }
+          await redis.del(`sms:${phone}`);
 
-    return {
-      id: phone,
-      name: phone,
-      phone: phone,
-    };
-  } catch (error: any) {
-    throw new Error(error.message || "登录失败，请重试");
-  }
-}
+          return {
+            id: phone,
+            name: phone,
+            phone: phone,
+          };
+        } catch (error: any) {
+          throw new Error(error.message || "登录失败，请重试");
+        }
+      },
     }),
   ],
 
@@ -110,7 +114,7 @@ export const authOptions = {
     async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
         session.user.phone = token.phone as string || undefined;
-        session.user.id = token.id as string || undefined;  // ← 现在类型正确
+        session.user.id = token.id as string || undefined;
       }
       return session;
     },
