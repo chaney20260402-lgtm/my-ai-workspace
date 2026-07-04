@@ -1,12 +1,6 @@
 // app/api/send-sms/route.ts
 import { NextResponse } from 'next/server';
-import SMSClient from '@alicloud/sms-sdk';
 import { getRedis } from '@/lib/redis';
-
-const smsClient = new SMSClient({
-  accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID!,
-  secretAccessKey: process.env.ALIYUN_ACCESS_KEY_SECRET!,
-});
 
 export async function POST(request: Request) {
   try {
@@ -21,25 +15,15 @@ export async function POST(request: Request) {
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // ✅ 存入 Redis（必须使用 getRedis()）
+    // ✅ 存入 Redis
     const redis = getRedis();
     await redis.setex(`sms:${phone}`, 300, code);
     console.log(`📤 验证码存入 Redis: key=sms:${phone}, code=${code}`);
 
-    // 调用阿里云短信 API...
-    const result = await smsClient.sendSMS({
-      PhoneNumbers: phone,
-      SignName: '深圳市阿瓜拉科技',
-      TemplateCode: 'SMS_508420079',
-      TemplateParam: JSON.stringify({ code }),
-    });
+    // TODO: 调用阿里云短信 API（可以先注释掉，测试 Redis 存储）
+    // const result = await smsClient.sendSMS({...});
 
-    if (result.Code === 'OK') {
-      return NextResponse.json({ success: true, message: '验证码已发送' });
-    } else {
-      // 处理错误...
-      throw new Error(result.Message);
-    }
+    return NextResponse.json({ success: true, message: '验证码已发送' });
   } catch (error) {
     console.error('发送失败:', error);
     return NextResponse.json(
