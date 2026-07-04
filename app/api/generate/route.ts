@@ -91,8 +91,21 @@ const modelConfigs: Record<string, any> = {
   // ---------- Gemini 格式 ----------
   'nanobanana-pro': {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      contents: [{ parts: [{ text: prompt }] }],
+  buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+    const parts: any[] = [{ text: prompt }];
+    if (referenceImages && referenceImages.length > 0) {
+      for (const imgData of referenceImages) {
+        const base64 = imgData.split(',')[1] || imgData;
+        parts.push({
+          inline_data: {
+            mime_type: 'image/png',
+            data: base64,
+          },
+        });
+      }
+    }
+    return {
+      contents: [{ parts }],
       generationConfig: {
         responseModalities: ['IMAGE'],
         imageConfig: {
@@ -100,12 +113,13 @@ const modelConfigs: Record<string, any> = {
           aspectRatio: aspectRatio || '1:1',
         },
       },
-    }),
-    extractImage: (data: any) => {
-      const imageData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      return imageData ? `data:image/png;base64,${imageData}` : null;
-    },
+    };
   },
+  extractImage: (data: any) => {
+    const imageData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    return imageData ? `data:image/png;base64,${imageData}` : null;
+  },
+},
   'nanobanana-2': {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent',
     buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
@@ -332,7 +346,7 @@ export async function POST(request: Request) {
     }
 
     // 7. 调用 API（使用增强后的提示词）
-    const payload = config.buildPayload(enhancedPrompt, size, aspectRatio);
+    const payload = config.buildPayload(enhancedPrompt, size, aspectRatio, referenceImage);
     console.log(`📤 调用模型: ${model}, 尺寸: ${size}, 比例: ${aspectRatio}`);
 
     const controller = new AbortController();

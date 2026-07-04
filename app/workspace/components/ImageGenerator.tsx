@@ -540,74 +540,75 @@ export default function ImageGenerator({
         />
       </div>
 
-      {/* 参考图上传 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '12px', flexWrap: 'wrap' }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            border: '2px dashed #d9d9d9',
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'border-color 0.3s',
-            position: 'relative',
-            flexShrink: 0,
-            overflow: 'hidden',
-            backgroundColor: '#fafafa',
-          }}
-          onClick={() => document.getElementById('ref-upload-input')?.click()}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1677ff'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d9d9d9'; }}
-        >
-          {referenceImages.length > 0 ? (
-            <img src={referenceImages[0]} alt="参考图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <PlusOutlined style={{ fontSize: 24, color: '#999' }} />
-          )}
-          {referenceImages.length > 1 && (
-            <span style={{
-              position: 'absolute',
-              bottom: 2,
-              right: 2,
-              background: 'rgba(0,0,0,0.6)',
-              color: '#fff',
-              fontSize: 10,
-              padding: '0 4px',
-              borderRadius: 4,
-              lineHeight: '16px',
-            }}>
-              +{referenceImages.length - 1}
-            </span>
-          )}
-        </div>
-        <input
-          id="ref-upload-input"
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              handleRefUpload(file);
-            }
-            e.target.value = '';
-          }}
-        />
-        {referenceImages.slice(1).map((img, idx) => (
-          <div key={idx} style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
-            <img src={img} alt={`参考图${idx+2}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 }} />
-            <CloseCircleOutlined
-              style={{ position: 'absolute', top: -6, right: -6, color: '#ff4d4f', cursor: 'pointer', fontSize: 16, background: '#fff', borderRadius: '50%' }}
-              onClick={() => removeReferenceImage(idx + 1)}
-            />
-          </div>
-        ))}
-        <span style={{ color: '#999', fontSize: 13 }}>上传参考图 (最多8张)</span>
-      </div>
+      {/* ====== 参考图上传（图片列表 + 末尾 + 号） ====== */}
+<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '12px', flexWrap: 'wrap' }}>
+  {/* 已上传的图片列表 */}
+  {referenceImages.map((img, idx) => (
+    <div key={idx} style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
+      <img
+        src={img}
+        alt={`参考图${idx+1}`}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4, border: '1px solid #d9d9d9' }}
+      />
+      <CloseCircleOutlined
+        style={{
+          position: 'absolute',
+          top: -6,
+          right: -6,
+          color: '#ff4d4f',
+          cursor: 'pointer',
+          fontSize: 16,
+          background: '#fff',
+          borderRadius: '50%',
+        }}
+        onClick={() => removeReferenceImage(idx)}
+      />
+    </div>
+  ))}
 
+  {/* 如果少于 8 张，显示“+”号上传按钮 */}
+  {referenceImages.length < 8 && (
+    <div
+      style={{
+        width: 64,
+        height: 64,
+        border: '2px dashed #d9d9d9',
+        borderRadius: 4,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'border-color 0.3s',
+        backgroundColor: '#fafafa',
+        flexShrink: 0,
+      }}
+      onClick={() => document.getElementById('ref-upload-input')?.click()}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1677ff'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d9d9d9'; }}
+    >
+      <PlusOutlined style={{ fontSize: 24, color: '#999' }} />
+    </div>
+  )}
+
+  {/* 隐藏的 input 用于触发上传 */}
+  <input
+    id="ref-upload-input"
+    type="file"
+    accept="image/*"
+    style={{ display: 'none' }}
+    onChange={(e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleRefUpload(file);
+      }
+      e.target.value = '';
+    }}
+  />
+
+  <span style={{ color: '#999', fontSize: 13, marginLeft: 4 }}>
+    上传参考图 ({referenceImages.length}/8)
+  </span>
+</div>
       {/* 多提示词输入框 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '12px' }}>
         {prompts.map((p, idx) => (
