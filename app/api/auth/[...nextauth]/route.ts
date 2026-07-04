@@ -74,16 +74,20 @@ export const authOptions = {
         // 生产环境验证
         try {
           const redis = getRedis();
-          const storedCode = await redis.get(`sms:${phone}`);
-          console.log(`📦 Redis 中存储的验证码: ${storedCode}`);
+          const key = `sms:${phone}`;
+          const storedCode = await redis.get(key);
+
+          // ✅ 详细日志：显示 key 和读取到的值
+          console.log(`📥 从 Redis 读取: key=${key}, value=${storedCode}`);
 
           if (!storedCode) {
             throw new Error("请先获取验证码");
           }
           if (storedCode !== code) {
+            console.log(`❌ 验证码不匹配: 输入=${code}, 存储=${storedCode}`);
             throw new Error("验证码错误，请重新输入");
           }
-          await redis.del(`sms:${phone}`);
+          await redis.del(key);
 
           return {
             id: phone,
