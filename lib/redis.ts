@@ -8,7 +8,6 @@ let redis: Redis | null = null;
  */
 export function getRedis(): Redis {
   if (!redis) {
-    // 优先使用 REDIS_URL
     let url = process.env.REDIS_URL;
 
     // 如果 REDIS_URL 未设置，尝试从 Upstash 变量组合
@@ -16,8 +15,10 @@ export function getRedis(): Redis {
       const restUrl = process.env.UPSTASH_REDIS_REST_URL;
       const restToken = process.env.UPSTASH_REDIS_REST_TOKEN;
       if (restUrl && restToken) {
+        // 提取 host（去掉 https://）
         const host = restUrl.replace(/^https?:\/\//, '');
-        url = `redis://default:${restToken}@${host}:6379`;
+        // ✅ 使用 rediss:// 强制 TLS，并添加 default 用户名
+        url = `rediss://default:${restToken}@${host}:6379`;
         console.log('🔧 从 Upstash 变量组合 REDIS_URL');
       }
     }
@@ -28,14 +29,20 @@ export function getRedis(): Redis {
     }
 
     try {
-      // ✅ 修正：移除不支持的 retryDelayOnFailover，使用 retryStrategy
+      console.log('🔄 正在连接 Redis...');
       redis = new Redis(url, {
         maxRetriesPerRequest: 3,
-        connectTimeout: 10000,
+        connectTimeout: 15000,
         retryStrategy: (times) => {
-          // 重试间隔逐渐增加，最多 2 秒
-          return Math.min(times * 50, 2000);
+          // 重试最多 3 次，间隔递增
+          if (times > 3) {
+            console.error('❌ Redis 重试次数过多，停止重试');
+            return null; // 停止重试
+          }
+          return Math.min(times * 100, 3000);
         },
+        // ✅ 启用 TLS（对于 rediss 协议是必需的）
+        tls: {},
       });
 
       // 测试连接
@@ -43,6 +50,10 @@ export function getRedis(): Redis {
         console.log('✅ Redis 连接已建立');
       }).catch((err) => {
         console.error('❌ Redis 连接失败:', err);
+        // 连接失败时降级到内存存储
+        redis = null;
+        console.warn('⚠️ 降级到内存存储');
+        return createMemoryRedis() as any;
       });
 
     } catch (error) {
