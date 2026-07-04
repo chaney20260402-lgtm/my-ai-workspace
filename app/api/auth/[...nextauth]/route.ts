@@ -4,10 +4,12 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getRedis } from '@/lib/redis';
 
+// ========== 扩展类型定义 ==========
 declare module "next-auth" {
   interface Session {
     user: {
       phone?: string;
+      id?: string;          // ← 添加 id
     } & DefaultSession["user"];
   }
   interface User {
@@ -15,51 +17,108 @@ declare module "next-auth" {
   }
 }
 
+declare module "next-auth/jwt" {
+  interface JWT {
+    phone?: string;
+    id?: string;            // ← 添加 id
+  }
+}
+
 export const authOptions = {
+  // ---------- 会话配置 ----------
+  session: {
+    strategy: "jwt" as const,
+    maxAge: 7 * 24 * 60 * 60,
+  },
+
+  // ---------- 页面配置 ----------
+  pages: {
+    signIn: "/workspace",
+    error: "/workspace",
+  },
+
   providers: [
+    // ---------- Google 登录 ----------
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+
+    // ---------- 手机号 + 验证码登录 ----------
     CredentialsProvider({
+      id: "credentials",
       name: "phone",
       credentials: {
         phone: { label: "手机号", type: "text" },
         code: { label: "验证码", type: "text" },
       },
       async authorize(credentials) {
-        // 万能验证码（测试）
-        if (credentials?.code === "000000") {
+        if (!credentials?.phone || !credentials?.code) {
+          return null;
+        }
+
+        const phone = credentials.phone.trim();
+        const code = credentials.code.trim();
+
+        // 万能验证码
+        if (code === "000000") {
           return {
-            id: credentials.phone || "13800138000",
-            name: "测试用户",
-            phone: credentials.phone || "13800138000",
+            id: phone,
+            name: phone,
+            phone: phone,
           };
         }
-        if (!credentials?.phone || !credentials?.code) return null;
-        const redis = getRedis();
-        const storedCode = await redis.get(`sms:${credentials.phone}`);
-        if (!storedCode) throw new Error("请先获取验证码");
-        if (storedCode !== credentials.code) throw new Error("验证码错误");
-        await redis.del(`sms:${credentials.phone}`);
-        return { id: credentials.phone, name: "手机用户", phone: credentials.phone };
+
+        try {
+          const redis = getRedis();
+          const storedCode = await redis.get(`sms:${phone}`);
+
+          if (!storedCode) {
+            throw new Error("请先获取验证码");
+          }
+          if (storedCode !== code) {
+            throw new Error("验证码错误，请重新输入");
+          }
+          await redis.del(`sms:${phone}`);
+
+          return {
+            id: phone,
+            name: phone,
+            phone: phone,
+          };
+        } catch (error: any) {
+          throw new Error(error.message || "登录失败，请重试");
+        }
       },
     }),
   ],
+
   secret: process.env.NEXTAUTH_SECRET,
-  debug: true,
+  debug: process.env.NODE_ENV === "development",
+
   callbacks: {
-    async session({ session, token }: { session: Session; token: JWT }) {
-      if (token.phone && session.user) {
-        session.user.phone = token.phone as string;
-      }
-      return session;
-    },
+    // JWT 回调
     async jwt({ token, user }: { token: JWT; user: any }) {
       if (user) {
         token.phone = user.phone;
+        token.id = user.id;
       }
       return token;
+    },
+
+    // Session 回调
+    async session({ session, token }: { session: Session; token: JWT }) {
+      if (session.user) {
+        session.user.phone = token.phone as string || undefined;
+        session.user.id = token.id as string || undefined;  // ← 现在类型正确
+      }
+      return session;
+    },
+
+    // 登录成功回调
+    async signIn({ user }: { user: any }) {
+      console.log(`🔐 用户登录: ${user?.phone || user?.email || user?.name}`);
+      return true;
     },
   },
 };

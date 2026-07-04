@@ -502,33 +502,35 @@ useEffect(() => {
 }
 
   const handlePhoneLogin = async () => {
-    if (!phone || !code) {
-      message.warning('请输入手机号和验证码');
-      return;
+  if (!phone || !code) {
+    message.warning('请输入手机号和验证码');
+    return;
+  }
+  if (!agreed) {
+    message.warning('请先同意服务协议');
+    return;
+  }
+  setLoginLoading(true);
+  try {
+    const result = await signIn('credentials', {
+      phone,
+      code,
+      redirect: false,
+    });
+    console.log('登录结果:', result); // ← 添加日志
+    if (result?.error) {
+      message.error('登录失败：' + result.error);
+    } else {
+      message.success('登录成功！');
+      window.location.reload();
     }
-    if (!agreed) {
-      message.warning('请先同意服务协议');
-      return;
-    }
-    setLoginLoading(true);
-    try {
-      const result = await signIn('credentials', {
-        phone,
-        code,
-        redirect: false,
-      });
-      if (result?.error) {
-        message.error('登录失败：' + result.error);
-      } else {
-        message.success('登录成功！');
-        window.location.reload();
-      }
-    } catch {
-      message.error('登录失败，请稍后重试');
-    } finally {
-      setLoginLoading(false);
-    }
-  };
+  } catch (error) {
+    console.error('登录错误:', error);
+    message.error('登录失败，请稍后重试');
+  } finally {
+    setLoginLoading(false);
+  }
+};
 
   // ---------- 登出 ----------
   const handleLogout = () => {
@@ -591,6 +593,7 @@ useEffect(() => {
   loading={smsLoading}
   disabled={smsLoading || countdown > 0}
   size="large"
+  style={{ color: '#333', background: '#fff', border: '1px solid #d9d9d9' }}
 >
   {countdown > 0 ? `${countdown}s` : '发送验证码'}
 </Button>
