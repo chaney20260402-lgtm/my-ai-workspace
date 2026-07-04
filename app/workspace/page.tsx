@@ -593,7 +593,7 @@ useEffect(() => {
   loading={smsLoading}
   disabled={smsLoading || countdown > 0}
   size="large"
-  style={{ color: '#333', background: '#fff', border: '1px solid #d9d9d9' }}
+  style={{ color: '#000000', background: '#fff', border: '1px solid #d9d9d9' }}
 >
   {countdown > 0 ? `${countdown}s` : '发送验证码'}
 </Button>
