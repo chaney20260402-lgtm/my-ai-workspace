@@ -134,6 +134,7 @@ export default function Workspace() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('qrcode');
   const [agreed, setAgreed] = useState(false);
+  const [countdown, setCountdown] = useState(0);
 
   const [templates] = useState(mockTemplates);
   const [category, setCategory] = useState('全部');
@@ -464,29 +465,41 @@ useEffect(() => {
 
   // ---------- 手机号登录 ----------
   const sendSms = async () => {
-    if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
-      message.warning('请输入正确的手机号');
-      return;
+  if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+    message.warning('请输入正确的手机号');
+    return;
+  }
+  if (countdown > 0) return;
+
+  setSmsLoading(true);
+  try {
+    const res = await fetch('/api/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      message.success('验证码已发送，请查看终端输出');
+      setCountdown(60);
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      message.error(data.message || '发送失败');
     }
-    setSmsLoading(true);
-    try {
-      const res = await fetch('/api/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        message.success('验证码已发送，请查看终端输出');
-      } else {
-        message.error(data.message || '发送失败');
-      }
-    } catch {
-      message.error('发送失败，请检查网络');
-    } finally {
-      setSmsLoading(false);
-    }
-  };
+  } catch {
+    message.error('发送失败，请检查网络');
+  } finally {
+    setSmsLoading(false);
+  }
+}
 
   const handlePhoneLogin = async () => {
     if (!phone || !code) {
@@ -573,9 +586,14 @@ useEffect(() => {
               size="large"
               style={{ flex: 1 }}
             />
-            <Button onClick={sendSms} loading={smsLoading} disabled={smsLoading} size="large">
-              发送验证码
-            </Button>
+            <Button
+  onClick={sendSms}
+  loading={smsLoading}
+  disabled={smsLoading || countdown > 0}
+  size="large"
+>
+  {countdown > 0 ? `${countdown}s` : '发送验证码'}
+</Button>
           </div>
           <div style={{ marginTop: 16 }}>
             <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>
@@ -644,11 +662,15 @@ useEffect(() => {
             <NotificationDropdown />
             <CreditDisplay />
             <Dropdown overlay={userMenu} placement="bottomRight">
-              <Avatar
-                src={avatarUrl || undefined}
-                icon={!avatarUrl ? <UserOutlined /> : undefined}
-                style={{ cursor: 'pointer' }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <Avatar
+          src={avatarUrl || undefined}
+          icon={!avatarUrl ? <UserOutlined /> : undefined}
+        />
+        <span style={{ color: '#333', fontSize: 14, fontWeight: 500 }}>
+          {session?.user?.phone || '用户'}
+        </span>
+      </div>
             </Dropdown>
           </Space>,
         ]}
