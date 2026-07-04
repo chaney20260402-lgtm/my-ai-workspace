@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import SMSClient from '@alicloud/sms-sdk';
-import { codeStore } from '@/lib/store';   // ✅ 保留导入
+import { codeStore } from '@/lib/store';
 
 const smsClient = new SMSClient({
   accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID!,
@@ -18,10 +18,11 @@ export async function POST(request: Request) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     codeStore[phone] = { code, expires: Date.now() + 5 * 60 * 1000 };
 
+    // ✅ 使用审核通过的签名：深圳市阿瓜拉科技
     const result = await smsClient.sendSMS({
       PhoneNumbers: phone,
-      SignName: process.env.ALIYUN_SMS_SIGN!,
-      TemplateCode: process.env.ALIYUN_SMS_TEMPLATE_CODE!,
+      SignName: '深圳市阿瓜拉科技',
+      TemplateCode: 'SMS_508420079',  // 或使用环境变量
       TemplateParam: JSON.stringify({ code }),
     });
 
