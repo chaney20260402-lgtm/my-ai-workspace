@@ -593,7 +593,7 @@ useEffect(() => {
   loading={smsLoading}
   disabled={smsLoading || countdown > 0}
   size="large"
-  style={{ color: '#000000', background: '#fff', border: '1px solid #d9d9d9' }}
+  className="send-code-btn" 
 >
   {countdown > 0 ? `${countdown}s` : '发送验证码'}
 </Button>
@@ -962,6 +962,15 @@ useEffect(() => {
           background: rgba(255, 255, 255, 0.2);
           border-radius: 4px;
         }
+          .login-tabs .send-code-btn {
+  color: #333 !important;
+  background: #fff !important;
+  border: 1px solid #d9d9d9 !important;
+}
+.login-tabs .send-code-btn:hover {
+  color: #000 !important;
+  border-color: #1677ff !important;
+}
       `}</style>
     </div>
   );
