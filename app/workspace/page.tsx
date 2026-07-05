@@ -20,7 +20,6 @@ import { useRouter } from 'next/navigation';
 import NotificationDropdown from './components/NotificationDropdown';
 import { MailOutlined } from '@ant-design/icons';
 import CreditDisplay from './components/CreditDisplay';
-import StarScene from './components/StarScene';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -116,9 +115,9 @@ const mockTemplates = [
 // 侧边栏菜单
 const menuItems = [
   { path: '/workspace', name: '首页' },
-  { path: '/workspace/assets', name: '资产库' },
-  { path: '/workspace/workflow', name: '工作流' },
-  { path: '/workspace/pricing', name: '价目表' },
+  { path: '/workspace/assets', name: '模型供应商' },
+  { path: '/workspace/workflow', name: '图片工作流' },
+  { path: '/workspace/pricing', name: '会员与积分' },
   { path: '/workspace/profile', name: '个人中心' },
 ];
 

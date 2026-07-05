@@ -1,5 +1,7 @@
+'use client';
+
 import { useState, useEffect, useRef } from 'react';
-import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage, List, Tag, Space, Upload } from 'antd';
+import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage, List, Tag, Space, Upload, InputNumber } from 'antd';
 import { DeleteOutlined, FilePdfOutlined, HistoryOutlined, PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import JSZip from 'jszip';
 import { useCredits } from '@/app/contexts/CreditsContext';
@@ -25,15 +27,6 @@ interface GeneratedImage {
   platform: string;
   language: string;
   referenceImages?: string[];
-}
-
-interface HistoryRecord {
-  id: string;
-  prompt: string;
-  platform: string;
-  language: string;
-  imageUrl: string;
-  createdAt: number;
 }
 
 // ---------- 平台列表 ----------
@@ -89,6 +82,12 @@ const modelOptions = [
   { value: 'seedream-5.0-lite', label: '✨ Seedream 5.0 Lite' },
   { value: 'seedream-4.5', label: '✨ Seedream 4.5' },
   { value: 'seedream-4.0', label: '✨ Seedream 4.0' },
+  { value: 'wan-2.7', label: '🌊 Wan 2.7' },
+  { value: 'wan-2.7-pro', label: '🌊 Wan 2.7 Pro' },
+  { value: 'wan-2.6', label: '🌊 Wan 2.6' },
+  { value: 'qwen-edit-max', label: '✏️ Qwen Edit Max' },
+  { value: 'midjourney-v8.1', label: '🎨 MidJourney V8.1' },
+  { value: 'midjourney-niji', label: '🎨 MidJourney Niji' },
 ];
 
 export default function ImageGenerator({
@@ -115,11 +114,7 @@ export default function ImageGenerator({
   
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>(initialImages);
-  const [history, setHistory] = useState<HistoryRecord[]>([]);
-  const [showHistory, setShowHistory] = useState(true);
-
-  // ---------- 新增 ref 用于防止无限循环 ----------
-  const prevPromptRef = useRef<string>('');
+  // 移除了 history 和 showHistory
 
   // 当数量变化时，调整prompts数组长度
   useEffect(() => {
@@ -132,7 +127,7 @@ export default function ImageGenerator({
     });
   }, [quantity]);
 
-  // 当 initialPrompt 变化时，更新第一个提示词（只依赖 initialPrompt）
+  // 当 initialPrompt 变化时，更新第一个提示词
   useEffect(() => {
     if (initialPrompt && prompts[0] !== initialPrompt) {
       setPrompts(prev => {
@@ -143,34 +138,13 @@ export default function ImageGenerator({
     }
   }, [initialPrompt]);
 
-  // 提示词变化时通知父组件（防无限循环）
+  // 提示词变化时通知父组件
   useEffect(() => {
-    const currentPrompt = prompts[0] || '';
-    if (onPromptChange && currentPrompt !== prevPromptRef.current) {
-      prevPromptRef.current = currentPrompt;
-      onPromptChange(currentPrompt);
+    if (onPromptChange && prompts.length > 0 && prompts[0] !== undefined) {
+      onPromptChange(prompts[0]);
     }
   }, [prompts, onPromptChange]);
 
-  // 加载历史（全局历史，与工作流无关）
-  useEffect(() => {
-    const saved = localStorage.getItem('image_generator_history');
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        console.error('读取历史失败', e);
-      }
-    }
-  }, []);
-
-  const saveHistory = (record: HistoryRecord) => {
-    const updated = [record, ...history];
-    setHistory(updated);
-    localStorage.setItem('image_generator_history', JSON.stringify(updated));
-  };
-
-  // 更新提示词
   const updatePrompt = (index: number, value: string) => {
     setPrompts(prev => {
       const newPrompts = [...prev];
@@ -266,14 +240,7 @@ export default function ImageGenerator({
           if (onGenerateSuccess) {
             onGenerateSuccess(data.imageUrl);
           }
-          saveHistory({
-            id: crypto.randomUUID(),
-            prompt: fullPrompt,
-            platform,
-            language,
-            imageUrl: data.imageUrl,
-            createdAt: Date.now(),
-          });
+          // 历史记录已移除
         } else {
           message.error(`第 ${i+1} 张生成失败: ${data.error || '未知错误'}`);
         }
@@ -360,15 +327,7 @@ export default function ImageGenerator({
         if (onGenerateSuccess) {
           onGenerateSuccess(data.imageUrl);
         }
-
-        saveHistory({
-          id: crypto.randomUUID(),
-          prompt: enhancedPrompt,
-          platform: imgPlatform,
-          language: imgLanguage,
-          imageUrl: data.imageUrl,
-          createdAt: Date.now(),
-        });
+        // 历史记录已移除
       } else {
         message.error('重新生成失败: ' + (data.error || '未知错误'));
         const restored = generatedImages.map((img) =>
@@ -488,6 +447,7 @@ export default function ImageGenerator({
         overflow: 'auto',
       }}}
     >
+      {/* 控制栏 */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
         <Select
           value={model}
@@ -540,75 +500,74 @@ export default function ImageGenerator({
         />
       </div>
 
-      {/* ====== 参考图上传（图片列表 + 末尾 + 号） ====== */}
-<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '12px', flexWrap: 'wrap' }}>
-  {/* 已上传的图片列表 */}
-  {referenceImages.map((img, idx) => (
-    <div key={idx} style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
-      <img
-        src={img}
-        alt={`参考图${idx+1}`}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4, border: '1px solid #d9d9d9' }}
-      />
-      <CloseCircleOutlined
-        style={{
-          position: 'absolute',
-          top: -6,
-          right: -6,
-          color: '#ff4d4f',
-          cursor: 'pointer',
-          fontSize: 16,
-          background: '#fff',
-          borderRadius: '50%',
-        }}
-        onClick={() => removeReferenceImage(idx)}
-      />
-    </div>
-  ))}
+      {/* 参考图上传 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '12px', flexWrap: 'wrap' }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            border: '2px dashed #d9d9d9',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'border-color 0.3s',
+            position: 'relative',
+            flexShrink: 0,
+            overflow: 'hidden',
+            backgroundColor: '#fafafa',
+          }}
+          onClick={() => document.getElementById('ref-upload-input')?.click()}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1677ff'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d9d9d9'; }}
+        >
+          {referenceImages.length > 0 ? (
+            <img src={referenceImages[0]} alt="参考图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <PlusOutlined style={{ fontSize: 24, color: '#999' }} />
+          )}
+          {referenceImages.length > 1 && (
+            <span style={{
+              position: 'absolute',
+              bottom: 2,
+              right: 2,
+              background: 'rgba(0,0,0,0.6)',
+              color: '#fff',
+              fontSize: 10,
+              padding: '0 4px',
+              borderRadius: 4,
+              lineHeight: '16px',
+            }}>
+              +{referenceImages.length - 1}
+            </span>
+          )}
+        </div>
+        <input
+          id="ref-upload-input"
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleRefUpload(file);
+            }
+            e.target.value = '';
+          }}
+        />
+        {referenceImages.slice(1).map((img, idx) => (
+          <div key={idx} style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
+            <img src={img} alt={`参考图${idx+2}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 }} />
+            <CloseCircleOutlined
+              style={{ position: 'absolute', top: -6, right: -6, color: '#ff4d4f', cursor: 'pointer', fontSize: 16, background: '#fff', borderRadius: '50%' }}
+              onClick={() => removeReferenceImage(idx + 1)}
+            />
+          </div>
+        ))}
+        <span style={{ color: '#999', fontSize: 13 }}>上传参考图 (最多8张)</span>
+      </div>
 
-  {/* 如果少于 8 张，显示“+”号上传按钮 */}
-  {referenceImages.length < 8 && (
-    <div
-      style={{
-        width: 64,
-        height: 64,
-        border: '2px dashed #d9d9d9',
-        borderRadius: 4,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        transition: 'border-color 0.3s',
-        backgroundColor: '#fafafa',
-        flexShrink: 0,
-      }}
-      onClick={() => document.getElementById('ref-upload-input')?.click()}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1677ff'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d9d9d9'; }}
-    >
-      <PlusOutlined style={{ fontSize: 24, color: '#999' }} />
-    </div>
-  )}
-
-  {/* 隐藏的 input 用于触发上传 */}
-  <input
-    id="ref-upload-input"
-    type="file"
-    accept="image/*"
-    style={{ display: 'none' }}
-    onChange={(e) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        handleRefUpload(file);
-      }
-      e.target.value = '';
-    }}
-  />
-
-  <span style={{ color: '#999', fontSize: 13, marginLeft: 4 }}>
-    上传参考图 ({referenceImages.length}/8)
-  </span>
-</div>
       {/* 多提示词输入框 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '12px' }}>
         {prompts.map((p, idx) => (
@@ -625,48 +584,15 @@ export default function ImageGenerator({
         ))}
       </div>
 
+      {/* 生成按钮 */}
       <Button type="primary" onClick={handleGenerateAll} loading={loading} style={{ width: 160 }}>
         一键生成 {prompts.filter(p => p.trim().length > 0).length} 张
       </Button>
       {loading && <Spin tip="生成中，请稍候..." style={{ marginLeft: '12px' }} />}
 
-      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button icon={<HistoryOutlined />} onClick={() => setShowHistory(!showHistory)}>
-          {showHistory ? '隐藏历史' : '显示历史'}
-        </Button>
-      </div>
+      {/* 历史记录按钮已移除 */}
 
-      {showHistory && history.length > 0 && (
-        <div style={{ marginTop: 16, maxHeight: 200, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8, padding: 8 }}>
-          <Divider orientation="left" style={{ margin: '0 0 8px 0', fontSize: 14 }}>📋 工作流历史</Divider>
-          <List
-            dataSource={history}
-            renderItem={(item) => (
-              <List.Item style={{ padding: '6px 0', borderBottom: '1px solid #f5f5f5' }}>
-                <div style={{ display: 'flex', gap: 12, width: '100%', alignItems: 'center' }}>
-                  <img src={item.imageUrl} alt="历史" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      <Tag color="blue">{PLATFORMS.find(p => p.value === item.platform)?.label}</Tag>
-                      <Tag color="green">{LANGUAGES.find(l => l.value === item.language)?.label}</Tag>
-                    </div>
-                    <TextArea
-                      value={item.prompt}
-                      rows={1}
-                      readOnly
-                      style={{ border: 'none', background: 'transparent', padding: 0, resize: 'none', fontSize: 12 }}
-                    />
-                    <div style={{ fontSize: 10, color: '#999' }}>
-                      {new Date(item.createdAt).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              </List.Item>
-            )}
-          />
-        </div>
-      )}
-
+      {/* 生成结果 */}
       {generatedImages.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <Divider orientation="left" style={{ margin: '8px 0 16px 0' }}>

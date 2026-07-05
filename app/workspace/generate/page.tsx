@@ -121,30 +121,6 @@ export default function GeneratePage() {
     }
   };
 
-  const handleRun = () => {
-    if (!workflow) {
-      const newWorkflow: Workflow = {
-        id: Date.now(),
-        name: '未命名工作流',
-        model: selectedModel === 'nanobanana-pro' ? 'Nano Banana Pro' : 'GPT Image 2',
-        size: selectedSize,
-        aspectRatio: selectedRatio,
-        prompt: '',
-        createdAt: new Date().toISOString(),
-        generatedImages: [],
-      };
-      const saved = localStorage.getItem('workflows');
-      const workflows = saved ? JSON.parse(saved) : [];
-      workflows.push(newWorkflow);
-      localStorage.setItem('workflows', JSON.stringify(workflows));
-      setWorkflow(newWorkflow);
-      setWorkflowImages([]);
-      message.success('工作流已创建，请填写提示词');
-    } else {
-      message.info('请在下方的文字生图模块中生成图片');
-    }
-  };
-
   const toolMenu = (
     <Menu
       onClick={({ key }) => {
@@ -163,6 +139,7 @@ export default function GeneratePage() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Layout>
+        {/* 顶部工具栏 */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {isEditingName ? (
@@ -179,10 +156,10 @@ export default function GeneratePage() {
                 {workflow?.name || '未命名工作流'}
               </Title>
             )}
-            <span style={{ color: '#bfbfbf', marginLeft: 8 }}>📝 文字生图</span>
+            {/* 已移除 "📝 文字生图" 标签 */}
           </div>
           <Space size="middle">
-            <Button type="primary" onClick={handleRun}>运行</Button>
+            {/* 已移除 "运行" 按钮 */}
             <Dropdown overlay={toolMenu} trigger={['hover']} placement="bottomRight">
               <Button icon={<ToolOutlined />}>菜单</Button>
             </Dropdown>
@@ -204,9 +181,7 @@ export default function GeneratePage() {
                         src={img.url}
                         alt={`历史图片 ${idx+1}`}
                         style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #e8e8e8' }}
-                        onClick={() => {
-                          message.info(`提示词: ${img.prompt.substring(0, 50)}...`);
-                        }}
+                        onClick={() => { message.info(`提示词: ${img.prompt.substring(0, 50)}...`); }}
                       />
                       <div style={{ position: 'absolute', bottom: 2, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '0 4px', borderRadius: 4 }}>
                         #{idx+1}
@@ -223,20 +198,8 @@ export default function GeneratePage() {
               initialSize={selectedSize}
               initialAspectRatio={selectedRatio}
               initialImages={workflowImages}
-              onPromptChange={(prompt) => {
-                // 只有真正变化时才更新
-                if (workflow && prompt && workflow.prompt !== prompt) {
-                  updateWorkflowPrompt(prompt);
-                }
-              }}
-              onImagesChange={(images) => {
-                // 比较是否真的变化（避免无限循环）
-                const current = workflow?.generatedImages || [];
-                if (images.length !== current.length || 
-                    (images.length > 0 && current.length > 0 && images[0]?.url !== current[0]?.url)) {
-                  updateWorkflowImages(images);
-                }
-              }}
+              onPromptChange={(prompt) => { if (workflow && prompt) updateWorkflowPrompt(prompt); }}
+              onImagesChange={(images) => updateWorkflowImages(images)}
             />
           </div>
         </Content>
