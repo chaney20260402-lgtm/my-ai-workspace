@@ -18,6 +18,7 @@
     "ag-psd": "^31.0.0",
     "alipay-sdk": "^3.6.2",
     "antd": "^5.29.3",
+    "bcrypt": "^6.0.0",
     "fabric": "^5.5.2",
     "ioredis": "^5.11.1",
     "jszip": "^3.10.1",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

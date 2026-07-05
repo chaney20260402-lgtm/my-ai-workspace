@@ -4,6 +4,7 @@ import { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getRedis } from '@/lib/redis';
+import bcrypt from 'bcrypt';
 
 // ========== 扩展类型定义 ==========
 declare module "next-auth" {
@@ -45,39 +46,66 @@ export const authOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
 
-    // ---------- 手机号 + 验证码登录 ----------
+    // ---------- 手机号 + 验证码 + 密码登录 ----------
     CredentialsProvider({
       id: "credentials",
       name: "phone",
       credentials: {
         phone: { label: "手机号", type: "text" },
         code: { label: "验证码", type: "text" },
+        password: { label: "密码", type: "password" }, // ✅ 新增密码字段
       },
       async authorize(credentials) {
         // 参数校验
-        if (!credentials?.phone || !credentials?.code) {
+        if (!credentials?.phone) {
           return null;
         }
 
         const phone = credentials.phone.trim();
-        const code = credentials.code.trim();
 
-        // 万能验证码（测试用）
-        if (code === "000000") {
+        // ----- 分支一：密码登录（如果提供了 password 字段） -----
+        if (credentials.password) {
+          const password = credentials.password.trim();
+          if (!password) {
+            throw new Error("请输入密码");
+          }
+
+          const redis = getRedis();
+          const userData = await redis.get(`user:${phone}`);
+          if (!userData) {
+            throw new Error("用户不存在，请先注册");
+          }
+
+          const user = JSON.parse(userData);
+          // 使用顶部导入的 bcrypt
+          const isValid = await bcrypt.compare(password, user.password);
+          if (!isValid) {
+            throw new Error("密码错误，请重新输入");
+          }
+
           return {
             id: phone,
-            name: phone,
+            name: user.name || phone,
             phone: phone,
           };
         }
 
-        // 生产环境验证
-        try {
+        // ----- 分支二：验证码登录（如果提供了 code 字段） -----
+        if (credentials.code) {
+          const code = credentials.code.trim();
+
+          // 万能验证码（测试用）
+          if (code === "000000") {
+            return {
+              id: phone,
+              name: phone,
+              phone: phone,
+            };
+          }
+
           const redis = getRedis();
           const key = `sms:${phone}`;
           const storedCode = await redis.get(key);
-
-          // ✅ 详细日志：显示 key 和读取到的值
           console.log(`📥 从 Redis 读取: key=${key}, value=${storedCode}`);
 
           if (!storedCode) {
@@ -94,9 +122,10 @@ export const authOptions = {
             name: phone,
             phone: phone,
           };
-        } catch (error: any) {
-          throw new Error(error.message || "登录失败，请重试");
         }
+
+        // 如果两者都没有，返回 null
+        return null;
       },
     }),
   ],

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Layout, Card, Tabs, Input, Button, message, Avatar, Dropdown, Menu,
-  Typography, Divider, Checkbox, Space, Carousel, Badge, Select, Row, Col,
+  Typography, Divider, Checkbox, Space, Carousel, Badge, Select, Row, Col,Modal,
 } from 'antd';
 import {
   UserOutlined, AppstoreOutlined, HistoryOutlined, SettingOutlined,
@@ -18,7 +18,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import NotificationDropdown from './components/NotificationDropdown';
-
+import { MailOutlined } from '@ant-design/icons';
 import CreditDisplay from './components/CreditDisplay';
 
 const { Title, Text, Paragraph } = Typography;
@@ -132,7 +132,7 @@ export default function Workspace() {
   const [code, setCode] = useState('');
   const [smsLoading, setSmsLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('qrcode');
+  const [activeTab, setActiveTab] = useState('sms');
   const [agreed, setAgreed] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
@@ -141,6 +141,30 @@ export default function Workspace() {
   const [searchText, setSearchText] = useState('');
   const [credits, setCredits] = useState(150);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const [email, setEmail] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [emailCodeLoading, setEmailCodeLoading] = useState(false);
+  const [emailCountdown, setEmailCountdown] = useState(0);
+
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [passwordLoginLoading, setPasswordLoginLoading] = useState(false);
+
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false); 
+  const [registerPhone, setRegisterPhone] = useState('');
+  const [registerCode, setRegisterCode] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerCountdown, setRegisterCountdown] = useState(0);
+
+
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotCode, setForgotCode] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotCountdown, setForgotCountdown] = useState(0);
 
   // ---------- 环绕旋转轨道动态计算 ----------
   const cardRef = useRef<HTMLDivElement>(null);
@@ -214,7 +238,6 @@ export default function Workspace() {
     };
   }, []);
 
-  // ---------- 螺旋星系（一圈圈星云） ----------
   // ---------- 螺旋星系（一圈圈星云） ----------
 useEffect(() => {
   const canvas = nebulaCanvasRef.current;
@@ -499,9 +522,9 @@ useEffect(() => {
   } finally {
     setSmsLoading(false);
   }
-}
+};
 
- const handlePhoneLogin = async () => {
+const handlePhoneLogin = async () => {
   if (!phone || !code) {
     message.warning('请输入手机号和验证码');
     return;
@@ -519,7 +542,6 @@ useEffect(() => {
     });
     console.log('登录结果:', result);
     if (result?.error) {
-      // 处理 NextAuth 的标准错误
       let errorMsg = result.error;
       if (errorMsg === 'CredentialsSignin') {
         errorMsg = '手机号或验证码错误，请重试';
@@ -538,6 +560,60 @@ useEffect(() => {
     setLoginLoading(false);
   }
 };
+
+// ---------- 邮箱登录 ---------- ✅ 独立定义（与上面的函数平级）
+const sendEmailCode = async () => {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    message.warning('请输入正确的邮箱地址');
+    return;
+  }
+  if (emailCountdown > 0) return;
+
+  setEmailCodeLoading(true);
+  try {
+    // TODO: 调用后端 API 发送邮箱验证码
+    // const res = await fetch('/api/send-email-code', { method: 'POST', body: JSON.stringify({ email }) });
+    message.success('验证码已发送至您的邮箱（模拟）');
+    setEmailCountdown(60);
+    const timer = setInterval(() => {
+      setEmailCountdown((prev) => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  } catch {
+    message.error('发送失败，请重试');
+  } finally {
+    setEmailCodeLoading(false);
+  }
+};
+
+const handleEmailLogin = async () => {
+  if (!email || !emailCode) {
+    message.warning('请输入邮箱和验证码');
+    return;
+  }
+  // TODO: 调用 NextAuth Credentials Provider 或自定义登录 API
+  message.info('邮箱登录功能开发中，请使用手机号登录');
+};
+
+// ---------- 密码登录 ---------- ✅ 独立定义
+const handlePasswordLogin = async () => {
+  if (!loginUsername || !loginPassword) {
+    message.warning('请输入用户名和密码');
+    return;
+  }
+  setPasswordLoginLoading(true);
+  try {
+    // TODO: 调用 NextAuth Credentials Provider
+    message.info('密码登录功能开发中，请使用手机号登录');
+  } catch (error) {
+    console.error('登录失败:', error);
+    message.error('登录失败，请重试');
+  } finally {
+    setPasswordLoginLoading(false);
+  }
+};
   // ---------- 登出 ----------
   const handleLogout = () => {
     signOut({ callbackUrl: '/workspace' });
@@ -554,92 +630,152 @@ useEffect(() => {
 
   // ---------- Tab 配置 ----------
   const tabItems = [
-    {
-      key: 'qrcode',
-      label: <span><QrcodeOutlined /> 扫码登录</span>,
-      children: (
-        <div style={{ textAlign: 'center', padding: '16px 0' }}>
-          <div style={{ display: 'inline-block', background: '#fafafa', padding: 16, borderRadius: 16 }}>
-            <QRCodeCanvas
-              value="https://open.weixin.qq.com/connect/qrconnect?appid=wx4bc5f40df91c2d07&redirect_uri=https%3A%2F%2Fstopwatch-derived-quality.ngrok-free.dev%2Fapi%2Fauth%2Fcallback%2Fwechat&response_type=code&scope=snsapi_userinfo&state=abc123#wechat_redirect"
-              size={200}
-              fgColor="#000"
-              bgColor="#ffffff"
-            />
-          </div>
-          <Paragraph style={{ marginTop: 16, fontSize: 14, color: '#666' }}>
-            打开微信扫一扫登录
-          </Paragraph>
-        </div>
-      ),
-    },
-    {
-      key: 'phone',
-      label: <span><PhoneOutlined /> 短信登录</span>,
-      children: (
-        <div style={{ marginTop: 16 }}>
+  {
+    key: 'sms',
+    label: <span><PhoneOutlined /> 短信登录</span>,
+    children: (
+      <div style={{ marginTop: 16 }}>
+        <Input
+          placeholder="请输入手机号"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          addonBefore="+86"
+          size="large"
+          style={{ marginBottom: 12 }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
           <Input
-            placeholder="请输入手机号"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            addonBefore="+86"
+            placeholder="请输入验证码"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             size="large"
-            style={{ marginBottom: 12 }}
+            style={{ flex: 1 }}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Input
-              placeholder="请输入验证码"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              size="large"
-              style={{ flex: 1 }}
-            />
-            <Button
-  onClick={sendSms}
-  loading={smsLoading}
-  disabled={smsLoading || countdown > 0}
-  size="large"
-  className="send-code-btn" 
->
-  {countdown > 0 ? `${countdown}s` : '发送验证码'}
-</Button>
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>
-              同意 <a href="#">用户服务协议</a>、<a href="#">隐私政策</a>、<a href="#">知识产权申明</a>、<a href="#">AI服务协议</a>
-            </Checkbox>
-          </div>
           <Button
-            type="primary"
-            block
+            onClick={sendSms}
+            loading={smsLoading}
+            disabled={smsLoading || countdown > 0}
             size="large"
-            onClick={handlePhoneLogin}
-            loading={loginLoading}
-            style={{ marginTop: 16 }}
+            className="send-code-btn"
           >
-            立即登录
+            {countdown > 0 ? `${countdown}s` : '发送验证码'}
           </Button>
-          <Divider plain style={{ marginTop: 24, fontSize: 12, color: '#ccc' }}>
-            其他登录方式
-          </Divider>
-          <div style={{ textAlign: 'center' }}>
-            <Space size="large">
-              <Button
-                shape="circle"
-                icon={<WechatOutlined style={{ fontSize: 20, color: '#07C160' }} />}
-                onClick={() => signIn('wechat')}
-              />
-              <Button
-                shape="circle"
-                icon={<GoogleOutlined style={{ fontSize: 20, color: '#4285F4' }} />}
-                onClick={() => signIn('google', { callbackUrl: '/workspace' })}
-              />
-            </Space>
-          </div>
         </div>
-      ),
-    },
-  ];
+        <div style={{ marginTop: 16 }}>
+          <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>
+            同意 <a href="#">用户服务协议</a>、<a href="#">隐私政策</a>
+          </Checkbox>
+        </div>
+        <Button
+          type="primary"
+          block
+          size="large"
+          onClick={handlePhoneLogin}
+          loading={loginLoading}
+          style={{ marginTop: 16 }}
+        >
+          立即登录
+        </Button>
+      </div>
+    ),
+  },
+  // ---------- 邮箱验证码登录 ----------
+  {
+    key: 'email',
+    label: <span><MailOutlined /> 邮箱登录</span>,
+    children: (
+      <div style={{ marginTop: 16 }}>
+        <Input
+          placeholder="请输入邮箱地址"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          size="large"
+          style={{ marginBottom: 12 }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Input
+            placeholder="请输入验证码"
+            value={emailCode}
+            onChange={(e) => setEmailCode(e.target.value)}
+            size="large"
+            style={{ flex: 1 }}
+          />
+          {/* ✅ 添加 className="send-code-btn" 使文字可见 */}
+          <Button
+            onClick={sendEmailCode}
+            loading={emailCodeLoading}
+            disabled={emailCodeLoading || emailCountdown > 0}
+            size="large"
+            className="send-code-btn"
+          >
+            {emailCountdown > 0 ? `${emailCountdown}s` : '发送验证码'}
+          </Button>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>
+            同意 <a href="#">用户服务协议</a>、<a href="#">隐私政策</a>
+          </Checkbox>
+        </div>
+        <Button
+          type="primary"
+          block
+          size="large"
+          onClick={handleEmailLogin}
+          loading={loginLoading}
+          style={{ marginTop: 16 }}
+        >
+          立即登录
+        </Button>
+      </div>
+    ),
+  },
+  // ---------- 用户名密码登录 ----------
+ {
+  key: 'password',
+  label: <span><UserOutlined /> 密码登录</span>,
+  children: (
+    <div style={{ marginTop: 16 }}>
+      <Input
+        placeholder="请输入用户名/手机号"
+        value={loginUsername}
+        onChange={(e) => setLoginUsername(e.target.value)}
+        size="large"
+        style={{ marginBottom: 12 }}
+      />
+      <Input.Password
+        placeholder="请输入密码"
+        value={loginPassword}
+        onChange={(e) => setLoginPassword(e.target.value)}
+        size="large"
+        className="password-input"
+        style={{ marginBottom: 12 }}
+      />
+      <div style={{ marginTop: 16 }}>
+        <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>
+          同意 <a href="#">用户服务协议</a>、<a href="#">隐私政策</a>
+        </Checkbox>
+      </div>
+      <Button
+        type="primary"
+        block
+        size="large"
+        onClick={handlePasswordLogin}
+        loading={passwordLoginLoading}
+        style={{ marginTop: 16 }}
+      >
+        立即登录
+      </Button>
+
+      {/* ✅ 在这里添加注册和忘记密码链接 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+        <Button type="link" onClick={() => setShowRegisterModal(true)}>注册账号</Button>
+        <Button type="link" onClick={() => setShowForgotPasswordModal(true)}>忘记密码</Button>
+      </div>
+    </div>
+  ),
+},
+]
+
 
   // ---------- 加载中 ----------
   if (status === 'loading') {
@@ -889,95 +1025,366 @@ useEffect(() => {
           无限的增长源自无限的创意
         </div>
       </div>
+      /* ========== 注册弹窗 ========== */
+  <Modal
+  title="注册账号"
+  open={showRegisterModal}
+  onCancel={() => setShowRegisterModal(false)}
+  footer={null}
+  destroyOnClose
+  centered
+  width={420}
+>
+  
+  <Input
+    placeholder="请输入手机号"
+    value={registerPhone}
+    onChange={(e) => setRegisterPhone(e.target.value)}
+    addonBefore="+86"
+    size="large"
+    style={{ marginBottom: 12 }}
+  />
+  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+    <Input
+      placeholder="请输入验证码"
+      value={registerCode}
+      onChange={(e) => setRegisterCode(e.target.value)}
+      size="large"
+      style={{ flex: 1 }}
+    />
+    <Button
+      onClick={async () => {
+        if (!registerPhone || !/^1[3-9]\d{9}$/.test(registerPhone)) {
+          message.warning('请输入正确的手机号');
+          return;
+        }
+        // 调用发送验证码API
+        setRegisterCountdown(60);
+        const timer = setInterval(() => {
+          setRegisterCountdown((prev) => {
+            if (prev <= 1) { clearInterval(timer); return 0; }
+            return prev - 1;
+          });
+        }, 1000);
+        message.success('验证码已发送（模拟）');
+      }}
+      disabled={registerCountdown > 0}
+      size="large"
+    >
+      {registerCountdown > 0 ? `${registerCountdown}s` : '获取验证码'}
+    </Button>
+  </div>
+  <Input.Password
+    placeholder="请输入密码（至少6位）"
+    value={registerPassword}
+    onChange={(e) => setRegisterPassword(e.target.value)}
+    size="large"
+    style={{ marginBottom: 12 }}
+  />
+  <Button
+    type="primary"
+    block
+    size="large"
+    loading={registerLoading}
+    onClick={async () => {
+      if (!registerPhone || !registerCode || !registerPassword) {
+        message.warning('请完善所有信息');
+        return;
+      }
+      if (registerPassword.length < 6) {
+        message.warning('密码至少6位');
+        return;
+      }
+      setRegisterLoading(true);
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: registerPhone,
+            code: registerCode,
+            password: registerPassword,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          message.success('注册成功，请登录');
+          setShowRegisterModal(false);
+          setRegisterPhone('');
+          setRegisterCode('');
+          setRegisterPassword('');
+        } else {
+          message.error(data.error || '注册失败');
+        }
+      } catch (error) {
+        console.error('注册失败:', error);
+        message.error('注册失败，请重试');
+      } finally {
+        setRegisterLoading(false);
+      }
+    }}
+  >
+    立即注册
+  </Button>
+  <div style={{ marginTop: 12, textAlign: 'center', color: '#999', fontSize: 12 }}>
+    已有账号？<Button type="link" size="small" onClick={() => setShowRegisterModal(false)}>去登录</Button>
+  </div>
+</Modal>
+{/* ========== 忘记密码弹窗 ========== */}
+<Modal
+  title="找回密码"
+  open={showForgotPasswordModal}
+  onCancel={() => {
+    setShowForgotPasswordModal(false);
+    setForgotPhone('');
+    setForgotCode('');
+    setForgotNewPassword('');
+  }}
+  footer={null}
+  destroyOnClose
+  centered
+  width={420}
+>
+  <Input
+    placeholder="请输入手机号"
+    value={forgotPhone}
+    onChange={(e) => setForgotPhone(e.target.value)}
+    addonBefore="+86"
+    size="large"
+    style={{ marginBottom: 12 }}
+  />
+  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+    <Input
+      placeholder="请输入验证码"
+      value={forgotCode}
+      onChange={(e) => setForgotCode(e.target.value)}
+      size="large"
+      style={{ flex: 1 }}
+    />
+    <Button
+      onClick={async () => {
+        if (!forgotPhone || !/^1[3-9]\d{9}$/.test(forgotPhone)) {
+          message.warning('请输入正确的手机号');
+          return;
+        }
+        const res = await fetch('/api/send-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: forgotPhone }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          message.success('验证码已发送');
+          setForgotCountdown(60);
+          const timer = setInterval(() => {
+            setForgotCountdown((prev) => {
+              if (prev <= 1) { clearInterval(timer); return 0; }
+              return prev - 1;
+            });
+          }, 1000);
+        } else {
+          message.error(data.message || '发送失败');
+        }
+      }}
+      disabled={forgotCountdown > 0}
+      size="large"
+    >
+      {forgotCountdown > 0 ? `${forgotCountdown}s` : '获取验证码'}
+    </Button>
+  </div>
+  <Input.Password
+    placeholder="请输入新密码（至少6位）"
+    value={forgotNewPassword}
+    onChange={(e) => setForgotNewPassword(e.target.value)}
+    size="large"
+    style={{ marginBottom: 12 }}
+  />
+  <Button
+    type="primary"
+    block
+    size="large"
+    loading={forgotLoading}
+    onClick={async () => {
+      if (!forgotPhone || !forgotCode || !forgotNewPassword) {
+        message.warning('请完善所有信息');
+        return;
+      }
+      if (forgotNewPassword.length < 6) {
+        message.warning('密码至少6位');
+        return;
+      }
+      setForgotLoading(true);
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: forgotPhone,
+            code: forgotCode,
+            newPassword: forgotNewPassword,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          message.success('密码重置成功，请登录');
+          setShowForgotPasswordModal(false);
+          setForgotPhone('');
+          setForgotCode('');
+          setForgotNewPassword('');
+        } else {
+          message.error(data.error || '重置失败');
+        }
+      } catch (error) {
+        console.error('重置失败:', error);
+        message.error('重置失败，请重试');
+      } finally {
+        setForgotLoading(false);
+      }
+    }}
+  >
+    重置密码
+  </Button>
+</Modal>
 
       <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .login-tabs .ant-tabs-tab {
-          color: rgba(255, 255, 255, 0.6) !important;
-        }
-        .login-tabs .ant-tabs-tab-active {
-          color: #fff !important;
-        }
-        .login-tabs .ant-tabs-ink-bar {
-          background: #6c5ce7 !important;
-        }
-        .login-tabs .ant-tabs-tab:hover {
-          color: #fff !important;
-        }
-        .login-tabs .ant-input,
-        .login-tabs .ant-input-affix-wrapper {
-          background: rgba(255, 255, 255, 0.05) !important;
-          border: 1px solid rgba(255, 255, 255, 0.08) !important;
-          color: #fff !important;
-          border-radius: 12px !important;
-        }
-        .login-tabs .ant-input::placeholder {
-          color: rgba(255, 255, 255, 0.3) !important;
-        }
-        .login-tabs .ant-input-group-addon {
-          background: rgba(255, 255, 255, 0.05) !important;
-          border: 1px solid rgba(255, 255, 255, 0.08) !important;
-          color: rgba(255, 255, 255, 0.6) !important;
-          border-radius: 12px 0 0 12px !important;
-        }
-        .login-tabs .ant-checkbox-wrapper {
-          color: rgba(255, 255, 255, 0.6) !important;
-        }
-        .login-tabs .ant-checkbox-wrapper a {
-          color: #a29bfe !important;
-        }
-        .login-tabs .ant-divider {
-          border-color: rgba(255, 255, 255, 0.08) !important;
-        }
-        .login-tabs .ant-divider-inner-text {
-          color: rgba(255, 255, 255, 0.3) !important;
-        }
-        .login-tabs .ant-btn-default {
-          color: rgba(255, 255, 255, 0.6) !important;
-          border-color: rgba(255, 255, 255, 0.08) !important;
-        }
-        .login-tabs .ant-btn-default:hover {
-          color: #fff !important;
-          border-color: rgba(255, 255, 255, 0.2) !important;
-        }
-        .login-tabs .ant-btn-primary {
-          background: linear-gradient(135deg, #6c5ce7, #a29bfe) !important;
-          border: none !important;
-          border-radius: 12px !important;
-        }
-        .login-tabs .ant-btn-primary:hover {
-          opacity: 0.85 !important;
-        }
-        .login-tabs .ant-btn-circle {
-          background: rgba(255, 255, 255, 0.05) !important;
-          border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        }
-        .login-tabs .ant-btn-circle:hover {
-          background: rgba(255, 255, 255, 0.12) !important;
-        }
-        .login-tabs::-webkit-scrollbar {
-          width: 4px;
-        }
-        .login-tabs::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .login-tabs::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: 4px;
-        }
-          .login-tabs .send-code-btn {
-  color: #333 !important;
-  background: #fff !important;
-  border: 1px solid #d9d9d9 !important;
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .login-tabs .ant-tabs-tab {
+    color: rgba(255, 255, 255, 0.6) !important;
+  }
+  .login-tabs .ant-tabs-tab-active {
+    color: #fff !important;
+  }
+  .login-tabs .ant-tabs-ink-bar {
+    background: #6c5ce7 !important;
+  }
+  .login-tabs .ant-tabs-tab:hover {
+    color: #fff !important;
+  }
+  .login-tabs .ant-input,
+  .login-tabs .ant-input-affix-wrapper {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    color: #fff !important;
+    border-radius: 12px !important;
+  }
+  .login-tabs .ant-input::placeholder {
+    color: rgba(255, 255, 255, 0.3) !important;
+  }
+  .login-tabs .ant-input-group-addon {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    color: rgba(255, 255, 255, 0.6) !important;
+    border-radius: 12px 0 0 12px !important;
+  }
+  .login-tabs .ant-checkbox-wrapper {
+    color: rgba(255, 255, 255, 0.6) !important;
+  }
+  .login-tabs .ant-checkbox-wrapper a {
+    color: #a29bfe !important;
+  }
+  .login-tabs .ant-divider {
+    border-color: rgba(255, 255, 255, 0.08) !important;
+  }
+  .login-tabs .ant-divider-inner-text {
+    color: rgba(255, 255, 255, 0.3) !important;
+  }
+  .login-tabs .ant-btn-default {
+    color: rgba(255, 255, 255, 0.6) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+  }
+  .login-tabs .ant-btn-default:hover {
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+  }
+  .login-tabs .ant-btn-primary {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe) !important;
+    border: none !important;
+    border-radius: 12px !important;
+  }
+  .login-tabs .ant-btn-primary:hover {
+    opacity: 0.85 !important;
+  }
+  .login-tabs .ant-btn-circle {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+  .login-tabs .ant-btn-circle:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+  }
+  .login-tabs::-webkit-scrollbar {
+    width: 4px;
+  }
+  .login-tabs::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .login-tabs::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+  .login-tabs .send-code-btn {
+    color: #333 !important;
+    background: #fff !important;
+    border: 1px solid #d9d9d9 !important;
+  }
+  .login-tabs .send-code-btn:hover {
+    color: #000 !important;
+    border-color: #1677ff !important;
+  }
+
+  /* ====== 新增：密码输入框样式（保留眼睛图标，去除多余样式） ====== */
+.login-tabs .password-input .ant-input {
+  padding-right: 40px !important; /* 为眼睛图标留出空间，但输入区域从左边开始正常 */
+  width: 100% !important;
+  background: transparent !important;
+  border: none !important;
 }
-.login-tabs .send-code-btn:hover {
-  color: #000 !important;
-  border-color: #1677ff !important;
+
+/* 确保外层容器和内层输入框的宽度一致 */
+.login-tabs .password-input,
+.login-tabs .password-input.ant-input-affix-wrapper {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  outline: none !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 12px !important; /* 与普通输入框的内边距一致 */
 }
-      `}</style>
+
+/* 内部的 input 占满剩余宽度 */
+.login-tabs .password-input .ant-input {
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding: 8px 0 !important; /* 调整上下内边距，与用户名一致 */
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: #fff !important;
+}
+
+/* 眼睛图标保持在右侧 */
+.login-tabs .password-input .ant-input-suffix {
+  margin-left: 8px !important;
+}
+
+/* 聚焦时无发光 */
+.login-tabs .password-input.ant-input-affix-wrapper-focused {
+  border-color: #6c5ce7 !important;
+  box-shadow: none !important;
+}
+
+/* 眼睛图标颜色 */
+.login-tabs .password-input .ant-input-password-icon {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+.login-tabs .password-input .ant-input-password-icon:hover {
+  color: #fff !important;
+}
+`}</style>
     </div>
   );
 }
