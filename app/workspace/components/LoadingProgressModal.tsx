@@ -48,7 +48,7 @@ export default function LoadingProgressModal({
           const increment = Math.floor(Math.random() * 5) + 1;
           return Math.min(prev + increment, 100);
         });
-      }, 300);
+      }, 600);
       // 更改提示语（每3秒）
       const msgInterval = setInterval(() => {
         setMessage(cuteMessages[Math.floor(Math.random() * cuteMessages.length)]);

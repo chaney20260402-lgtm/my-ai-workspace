@@ -191,7 +191,8 @@ export default function ImageGenerator({
     }
     // 🔥 显示进度条
     setProgressTitle('正在生成图片...');
-    setProgressVisible(true);
+  setProgressVisible(true);
+  setLoading(true);
 
     const platformLabel = PLATFORMS.find(p => p.value === platform)?.label || platform;
     const languageLabel = LANGUAGES.find(l => l.value === language)?.label || language;
@@ -684,6 +685,10 @@ export default function ImageGenerator({
           </Row>
         </div>
       )}
+      <LoadingProgressModal
+      visible={progressVisible}
+      title={progressTitle}
+    />
     </Card>
   );
 }
