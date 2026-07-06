@@ -643,42 +643,6 @@ const handlePhoneLogin = async () => {
   }
 };
 
-// ---------- 邮箱登录 ---------- ✅ 独立定义（与上面的函数平级）
-const sendEmailCode = async () => {
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    message.warning('请输入正确的邮箱地址');
-    return;
-  }
-  if (emailCountdown > 0) return;
-
-  setEmailCodeLoading(true);
-  try {
-    // TODO: 调用后端 API 发送邮箱验证码
-    // const res = await fetch('/api/send-email-code', { method: 'POST', body: JSON.stringify({ email }) });
-    message.success('验证码已发送至您的邮箱（模拟）');
-    setEmailCountdown(60);
-    const timer = setInterval(() => {
-      setEmailCountdown((prev) => {
-        if (prev <= 1) { clearInterval(timer); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-  } catch {
-    message.error('发送失败，请重试');
-  } finally {
-    setEmailCodeLoading(false);
-  }
-};
-
-const handleEmailLogin = async () => {
-  if (!email || !emailCode) {
-    message.warning('请输入邮箱和验证码');
-    return;
-  }
-  // TODO: 调用 NextAuth Credentials Provider 或自定义登录 API
-  message.info('邮箱登录功能开发中，请使用手机号登录');
-};
-
 // ---------- 密码登录 ---------- ✅ 独立定义
 const handlePasswordLogin = async () => {
   if (!loginUsername || !loginPassword) {
@@ -753,56 +717,6 @@ const handlePasswordLogin = async () => {
           block
           size="large"
           onClick={handlePhoneLogin}
-          loading={loginLoading}
-          style={{ marginTop: 16 }}
-        >
-          立即登录
-        </Button>
-      </div>
-    ),
-  },
-  // ---------- 邮箱验证码登录 ----------
-  {
-    key: 'email',
-    label: <span><MailOutlined /> 邮箱登录</span>,
-    children: (
-      <div style={{ marginTop: 16 }}>
-        <Input
-          placeholder="请输入邮箱地址"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          size="large"
-          style={{ marginBottom: 12 }}
-        />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Input
-            placeholder="请输入验证码"
-            value={emailCode}
-            onChange={(e) => setEmailCode(e.target.value)}
-            size="large"
-            style={{ flex: 1 }}
-          />
-          {/* ✅ 添加 className="send-code-btn" 使文字可见 */}
-          <Button
-            onClick={sendEmailCode}
-            loading={emailCodeLoading}
-            disabled={emailCodeLoading || emailCountdown > 0}
-            size="large"
-            className="send-code-btn"
-          >
-            {emailCountdown > 0 ? `${emailCountdown}s` : '发送验证码'}
-          </Button>
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>
-            同意 <a href="#">用户服务协议</a>、<a href="#">隐私政策</a>
-          </Checkbox>
-        </div>
-        <Button
-          type="primary"
-          block
-          size="large"
-          onClick={handleEmailLogin}
           loading={loginLoading}
           style={{ marginTop: 16 }}
         >
@@ -997,7 +911,6 @@ const handlePasswordLogin = async () => {
         zIndex: 5,
       }}
     />
-
       {/* 登录卡片 */}
       <div
         ref={cardRef}
@@ -1055,13 +968,18 @@ const handlePasswordLogin = async () => {
   <Modal
   title="注册账号"
   open={showRegisterModal}
-  onCancel={() => setShowRegisterModal(false)}
+  onCancel={() => {
+    setShowRegisterModal(false);
+    setRegisterPhone('');
+    setRegisterCode('');
+    setRegisterPassword('');
+    setRegisterLoading(false);
+  }}
   footer={null}
   destroyOnClose
   centered
   width={420}
 >
-  
   <Input
     placeholder="请输入手机号"
     value={registerPhone}
@@ -1084,15 +1002,32 @@ const handlePasswordLogin = async () => {
           message.warning('请输入正确的手机号');
           return;
         }
-        // 调用发送验证码API
+        if (registerCountdown > 0) return;
+
         setRegisterCountdown(60);
-        const timer = setInterval(() => {
-          setRegisterCountdown((prev) => {
-            if (prev <= 1) { clearInterval(timer); return 0; }
-            return prev - 1;
+        try {
+          const res = await fetch('/api/send-sms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: registerPhone }),
           });
-        }, 1000);
-        message.success('验证码已发送（模拟）');
+          const data = await res.json();
+          if (data.success) {
+            message.success('验证码已发送');
+            const timer = setInterval(() => {
+              setRegisterCountdown((prev) => {
+                if (prev <= 1) { clearInterval(timer); return 0; }
+                return prev - 1;
+              });
+            }, 1000);
+          } else {
+            message.error(data.message || '发送失败');
+            setRegisterCountdown(0);
+          }
+        } catch {
+          message.error('发送失败，请检查网络');
+          setRegisterCountdown(0);
+        }
       }}
       disabled={registerCountdown > 0}
       size="large"
@@ -1113,14 +1048,19 @@ const handlePasswordLogin = async () => {
     size="large"
     loading={registerLoading}
     onClick={async () => {
-      if (!registerPhone || !registerCode || !registerPassword) {
-        message.warning('请完善所有信息');
+      if (!registerPhone || !/^1[3-9]\d{9}$/.test(registerPhone)) {
+        message.warning('请输入正确的手机号');
         return;
       }
-      if (registerPassword.length < 6) {
+      if (!registerCode) {
+        message.warning('请输入验证码');
+        return;
+      }
+      if (!registerPassword || registerPassword.length < 6) {
         message.warning('密码至少6位');
         return;
       }
+
       setRegisterLoading(true);
       try {
         const res = await fetch('/api/auth/register', {
@@ -1189,34 +1129,42 @@ const handlePasswordLogin = async () => {
     />
     <Button
       onClick={async () => {
-        if (!forgotPhone || !/^1[3-9]\d{9}$/.test(forgotPhone)) {
-          message.warning('请输入正确的手机号');
-          return;
-        }
-        const res = await fetch('/api/send-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: forgotPhone }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          message.success('验证码已发送');
-          setForgotCountdown(60);
-          const timer = setInterval(() => {
-            setForgotCountdown((prev) => {
-              if (prev <= 1) { clearInterval(timer); return 0; }
-              return prev - 1;
-            });
-          }, 1000);
-        } else {
-          message.error(data.message || '发送失败');
-        }
-      }}
-      disabled={forgotCountdown > 0}
-      size="large"
-    >
-      {forgotCountdown > 0 ? `${forgotCountdown}s` : '获取验证码'}
-    </Button>
+    if (!forgotPhone || !/^1[3-9]\d{9}$/.test(forgotPhone)) {
+      message.warning('请输入正确的手机号');
+      return;
+    }
+    if (forgotCountdown > 0) return;
+
+    setForgotCountdown(60);
+    try {
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: forgotPhone }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        message.success('验证码已发送');
+        const timer = setInterval(() => {
+          setForgotCountdown((prev) => {
+            if (prev <= 1) { clearInterval(timer); return 0; }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        message.error(data.message || '发送失败');
+        setForgotCountdown(0);
+      }
+    } catch {
+      message.error('发送失败，请检查网络');
+      setForgotCountdown(0);
+    }
+  }}
+  disabled={forgotCountdown > 0}
+  size="large"
+>
+  {forgotCountdown > 0 ? `${forgotCountdown}s` : '获取验证码'}
+</Button>
   </div>
   <Input.Password
     placeholder="请输入新密码（至少6位）"
