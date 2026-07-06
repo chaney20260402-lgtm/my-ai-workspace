@@ -1,3 +1,4 @@
+// app/api/generate/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -68,11 +69,7 @@ const aspectRatioToSize: Record<string, { width: number; height: number }> = {
 };
 
 // ========== 辅助函数：构建增强提示词 ==========
-function buildEnhancedPrompt(
-  originalPrompt: string,
-  platform?: string,
-  language?: string
-): string {
+function buildEnhancedPrompt(originalPrompt: string, platform?: string, language?: string): string {
   let enhanced = originalPrompt;
   const platformLabel = PLATFORMS.find(p => p.value === platform)?.label;
   const languageLabel = LANGUAGES.find(l => l.value === language)?.label;
@@ -88,60 +85,74 @@ function buildEnhancedPrompt(
 
 // ========== 模型配置表 ==========
 const modelConfigs: Record<string, any> = {
-  // ---------- Gemini 格式 ----------
+  // ---------- Gemini 格式（支持参考图） ----------
   'nanobanana-pro': {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
-  buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
-    const parts: any[] = [{ text: prompt }];
-    if (referenceImages && referenceImages.length > 0) {
-      for (const imgData of referenceImages) {
-        const base64 = imgData.split(',')[1] || imgData;
-        parts.push({
-          inline_data: {
-            mime_type: 'image/png',
-            data: base64,
-          },
-        });
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const parts: any[] = [{ text: prompt }];
+      if (referenceImages && referenceImages.length > 0) {
+        for (const imgData of referenceImages) {
+          const base64 = imgData.split(',')[1] || imgData;
+          parts.push({
+            inline_data: {
+              mime_type: 'image/png',
+              data: base64,
+            },
+          });
+        }
       }
-    }
-    return {
-      contents: [{ parts }],
-      generationConfig: {
-        responseModalities: ['IMAGE'],
-        imageConfig: {
-          imageSize: size || '2K',
-          aspectRatio: aspectRatio || '1:1',
+      return {
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+          imageConfig: {
+            imageSize: size || '2K',
+            aspectRatio: aspectRatio || '1:1',
+          },
         },
-      },
-    };
+      };
+    },
+    extractImage: (data: any) => {
+      const imageData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      return imageData ? `data:image/png;base64,${imageData}` : null;
+    },
   },
-  extractImage: (data: any) => {
-    const imageData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    return imageData ? `data:image/png;base64,${imageData}` : null;
-  },
-},
   'nanobanana-2': {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseModalities: ['IMAGE'],
-        imageConfig: {
-          imageSize: size || '2K',
-          aspectRatio: aspectRatio || '1:1',
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const parts: any[] = [{ text: prompt }];
+      if (referenceImages && referenceImages.length > 0) {
+        for (const imgData of referenceImages) {
+          const base64 = imgData.split(',')[1] || imgData;
+          parts.push({
+            inline_data: {
+              mime_type: 'image/png',
+              data: base64,
+            },
+          });
+        }
+      }
+      return {
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+          imageConfig: {
+            imageSize: size || '2K',
+            aspectRatio: aspectRatio || '1:1',
+          },
         },
-      },
-    }),
+      };
+    },
     extractImage: (data: any) => {
       const imageData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       return imageData ? `data:image/png;base64,${imageData}` : null;
     },
   },
 
-  // ---------- OpenAI 格式 ----------
+  // ---------- 其他模型（不支持参考图，仅文本） ----------
   'gpt-image-2': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => {
+    buildPayload: (prompt: string, size: string, aspectRatio: string, _referenceImages?: string[]) => {
       const baseSize = sizePresets[size] || '1024x1024';
       const ratio = aspectRatioToSize[aspectRatio] || { width: 1, height: 1 };
       const base = parseInt(baseSize.split('x')[0]);
@@ -277,7 +288,7 @@ const modelConfigs: Record<string, any> = {
 // ========== POST 处理 ==========
 export async function POST(request: Request) {
   try {
-    // 1. 获取请求参数（新增 platform, language, referenceImage）
+    // 1. 获取请求参数
     const {
       prompt,
       model,
@@ -286,7 +297,7 @@ export async function POST(request: Request) {
       quantity = 1,
       platform,
       language,
-      referenceImage,
+      referenceImages,
     } = await request.json();
 
     if (!prompt) {
@@ -300,40 +311,7 @@ export async function POST(request: Request) {
     }
     const userPhone = session.user.phone;
 
-    // 3. 积分扣除（每张 8 积分）
-    const costPerImage = 8;
-    const totalCost = costPerImage * quantity;
-    let newCredits: number;
-
-    // ---------- 开发环境跳过积分扣除（方便测试） ----------
-    const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) {
-      console.log(`⚠️ 开发模式：跳过实际积分扣除，假装消耗 ${totalCost} 积分`);
-      newCredits = 100 - totalCost;
-    } else {
-      try {
-        newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);
-      } catch (error: any) {
-        console.error('❌ 积分扣除失败:', error.message);
-        return NextResponse.json(
-          { error: error.message || '积分扣除失败，请检查余额' },
-          { status: 402 }
-        );
-      }
-    }
-
-    console.log(`💰 当前剩余积分: ${newCredits}`);
-
-    // 4. 构建增强提示词（将平台、语言信息嵌入）
-    const enhancedPrompt = buildEnhancedPrompt(prompt, platform, language);
-    console.log(`📝 增强后提示词: ${enhancedPrompt.substring(0, 150)}...`);
-
-    // 5. 处理参考图（当前模型暂不支持，仅记录）
-    if (referenceImage) {
-      console.log(`📎 收到参考图，长度: ${referenceImage.substring(0, 50)}...（当前模型暂不支持图生图）`);
-    }
-
-    // 6. 检查模型配置
+    // 3. 检查模型配置
     const config = modelConfigs[model];
     if (!config) {
       return NextResponse.json({ error: '不支持的模型' }, { status: 400 });
@@ -345,19 +323,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '服务器配置错误' }, { status: 500 });
     }
 
-    // 7. 调用 API（使用增强后的提示词）
-    const payload = config.buildPayload(enhancedPrompt, size, aspectRatio, referenceImage);
+    // 4. 构建增强提示词
+    const enhancedPrompt = buildEnhancedPrompt(prompt, platform, language);
+    console.log(`📝 增强后提示词: ${enhancedPrompt.substring(0, 150)}...`);
+
+    // 5. 调用 API（先不扣积分）
+    const payload = config.buildPayload(enhancedPrompt, size, aspectRatio, referenceImages);
     console.log(`📤 调用模型: ${model}, 尺寸: ${size}, 比例: ${aspectRatio}`);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 55000);
+
+    let imageUrl: string | null = null;
+    let apiError: any = null;
 
     try {
       const response = await fetch(config.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${APIYI_KEY}`,
+          'Authorization': `Bearer ${APIYI_KEY}`,
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
@@ -368,34 +353,65 @@ export async function POST(request: Request) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API 错误:', errorText);
-        return NextResponse.json(
-          { error: `API 调用失败: ${response.status}` },
-          { status: response.status }
-        );
+        apiError = new Error(`API 调用失败: ${response.status} - ${errorText}`);
+      } else {
+        const data = await response.json();
+        imageUrl = config.extractImage(data);
+        if (!imageUrl) {
+          console.error('❌ 未提取到图片:', data);
+          apiError = new Error('生成失败，未返回图片');
+        }
       }
-
-      const data = await response.json();
-      const imageUrl = config.extractImage(data);
-
-      if (!imageUrl) {
-        console.error('❌ 未提取到图片:', data);
-        return NextResponse.json({ error: '生成失败，未返回图片' }, { status: 500 });
-      }
-
-      console.log(`✅ 生成成功，图片长度: ${imageUrl.length}`);
-      return NextResponse.json({
-        success: true,
-        imageUrl,
-        credits: newCredits,
-      });
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       if (fetchError.name === 'AbortError') {
         console.error('❌ 请求超时');
-        return NextResponse.json({ error: '生成超时，请稍后重试' }, { status: 504 });
+        apiError = new Error('生成超时，请稍后重试');
+      } else {
+        apiError = fetchError;
       }
-      throw fetchError;
     }
+
+    // 6. 如果 API 调用失败，直接返回错误（不扣积分）
+    if (apiError) {
+      console.error('❌ 生成失败:', apiError);
+      return NextResponse.json(
+        { error: apiError.message || '生成失败，请重试' },
+        { status: 500 }
+      );
+    }
+
+    // 7. API 成功，现在扣除积分
+    const costPerImage = 8;
+    const totalCost = costPerImage * quantity;
+    let newCredits: number;
+
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev) {
+      console.log(`⚠️ 开发模式：跳过实际积分扣除，假装消耗 ${totalCost} 积分`);
+      newCredits = 100 - totalCost;
+    } else {
+      try {
+        newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);
+      } catch (error: any) {
+        console.error('❌ 积分扣除失败:', error.message);
+        // 虽然图片生成了，但积分扣失败，返回错误（但已生成的图片无法撤回，需要记录）
+        return NextResponse.json(
+          { error: error.message || '积分扣除失败，请检查余额' },
+          { status: 402 }
+        );
+      }
+    }
+
+    console.log(`💰 当前剩余积分: ${newCredits}`);
+    // 此时 imageUrl 一定不为 null（因为 apiError 为 null，且 extractImage 已返回有效值）
+    console.log(`✅ 生成成功，图片长度: ${imageUrl!.length}`);
+
+    return NextResponse.json({
+      success: true,
+      imageUrl: imageUrl!, // 非空断言，因为已确保成功
+      credits: newCredits,
+    });
   } catch (error: any) {
     console.error('❌ 生成错误:', error);
     return NextResponse.json(
