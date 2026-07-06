@@ -17,11 +17,14 @@ export async function POST(request: Request) {
 
     // ✅ 存入 Redis
     const redis = getRedis();
+    console.log(`🔍 Redis 连接状态:`, redis ? '已连接' : '未连接');
+    
     await redis.setex(`sms:${phone}`, 300, code);
     console.log(`📤 验证码存入 Redis: key=sms:${phone}, code=${code}`);
 
-    // TODO: 调用阿里云短信 API（可以先注释掉，测试 Redis 存储）
-    // const result = await smsClient.sendSMS({...});
+    // 验证是否真的存进去了
+    const verify = await redis.get(`sms:${phone}`);
+    console.log(`✅ 验证读取: key=sms:${phone}, value=${verify}`);
 
     return NextResponse.json({ success: true, message: '验证码已发送' });
   } catch (error) {
