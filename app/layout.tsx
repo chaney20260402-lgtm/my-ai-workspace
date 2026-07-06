@@ -4,13 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { SessionProvider, useSession } from "next-auth/react";
 import { ProLayout } from '@ant-design/pro-components';
 import { usePathname, useRouter } from 'next/navigation';
-import { Badge, Space, Avatar, Dropdown, Menu, message, Popover, Statistic, Divider, List, Typography } from 'antd';
-import { BellOutlined, UserOutlined } from '@ant-design/icons';
+import { Space, Avatar, Dropdown, Menu, message, Popover, Divider, List, Typography } from 'antd';
+import { UserOutlined } from '@ant-design/icons';
 import { signOut } from 'next-auth/react';
 import './globals.css';
 import NotificationDropdown from '@/app/workspace/components/NotificationDropdown';
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
-// 导入 CreditsProvider 和 useCredits
 import { CreditsProvider, useCredits } from '@/app/contexts/CreditsContext';
 
 const { Text } = Typography;
@@ -23,18 +22,16 @@ const menuItems = [
   { path: '/workspace/profile', name: '个人中心' },
 ];
 
-// ---------- 积分显示组件（使用全局积分） ----------
+// ---------- 积分显示组件 ----------
 function CreditDisplay() {
-  const { credits, refreshCredits } = useCredits(); // 从 Context 获取积分
+  const { credits } = useCredits();
   const [records, setRecords] = useState<CreditRecord[]>([]);
 
   useEffect(() => {
-    // 获取积分记录（用于弹窗统计）
     const recordsData = getCreditRecords();
     setRecords(recordsData);
   }, []);
 
-  // 计算统计信息（用于弹窗）
   const totalRecords = records.length;
   const totalConsumed = records
     .filter(r => r.type === 'consume')
@@ -116,6 +113,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  // 恢复为原始的 ProLayout 配置（不带广告）
   return (
     <ProLayout
       title="Aguala"
@@ -149,7 +147,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           className="no-hover"
         >
           <NotificationDropdown />
-          <CreditDisplay />  {/* 现在使用全局积分 */}
+          <CreditDisplay />
           <Dropdown overlay={userMenu} placement="bottomRight">
             <Avatar
               src={avatarUrl || undefined}
@@ -165,13 +163,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ---------- 根布局（包裹 CreditsProvider） ----------
+// ---------- 根布局 ----------
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
       <body>
         <SessionProvider>
-          <CreditsProvider>  {/* 积分上下文提供者 */}
+          <CreditsProvider>
             <LayoutContent>{children}</LayoutContent>
           </CreditsProvider>
         </SessionProvider>

@@ -121,6 +121,78 @@ const menuItems = [
   { path: '/workspace/profile', name: '个人中心' },
 ];
 
+// ---------- 广告内容（与全局布局保持一致） ----------
+const adContent = (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px 18px',
+      flexWrap: 'wrap',
+      padding: '0 16px',
+    }}
+  >
+    {[
+      { name: 'OpenAI', color: '#10a37f' },
+      { name: 'Claude', color: '#d97706' },
+      { name: 'Gemini', color: '#4285f4' },
+      { name: 'Grok', color: '#ff6b35' },
+      { name: 'DeepSeek', color: '#4f46e5' },
+      { name: 'Qwen', color: '#ff6b00' },
+    ].map((model) => (
+      <div
+        key={model.name}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'rgba(0, 0, 0, 0.04)',
+          padding: '1px 12px 1px 6px',
+          borderRadius: 20,
+          whiteSpace: 'nowrap',
+          cursor: 'default',
+        }}
+      >
+        <div
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: model.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 700,
+          }}
+        >
+          {model.name[0]}
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 500 }}>{model.name}</span>
+      </div>
+    ))}
+
+    <span
+      style={{
+        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+        padding: '4px 16px',
+        borderRadius: 20,
+        fontWeight: 700,
+        fontSize: 12,
+        color: '#0b1120',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span>🎉</span> 免费体验包 
+    </span>
+  </div>
+);
+
 // ---------- 主组件 ----------
 export default function Workspace() {
   const { data: session, status } = useSession();
@@ -782,94 +854,192 @@ const handlePasswordLogin = async () => {
     );
   }
 
-  // ---------- 已登录 ----------
-  if (session) {
-    return (
-      <ProLayout
-        title="Aguala"
-        logo={false}
-        layout="mix"
-        fixedHeader={true}
-        navTheme="light"
-        colorPrimary="#101011"
-        location={{ pathname }}
-        route={{ routes: menuItems }}
-        contentStyle={{ padding: 0 }}
-        menuItemRender={(item, dom) => {
-          return <Link href={item.path || '#'}>{dom}</Link>;
-        }}
-        actionsRender={() => [
-          <Space key="user" size="middle">
-            <NotificationDropdown />
-            <CreditDisplay />
-            <Dropdown overlay={userMenu} placement="bottomRight">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-        <Avatar
-          src={avatarUrl || undefined}
-          icon={!avatarUrl ? <UserOutlined /> : undefined}
-        />
-        <span style={{ color: '#333', fontSize: 14, fontWeight: 500 }}>
-          {session?.user?.phone || '用户'}
-        </span>
-      </div>
-            </Dropdown>
-          </Space>,
-        ]}
-      >
-        <div style={{ padding: '0px 0px 0px 0px' }}>
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
-            <Select
-              defaultValue="全部"
-              style={{ width: 100 }}
-              onChange={(value) => setCategory(value)}
-            >
-              <Select.Option value="全部">全部</Select.Option>
-              <Select.Option value="潮流服饰">潮流服饰</Select.Option>
-              <Select.Option value="鞋靴箱包">鞋靴箱包</Select.Option>
-              <Select.Option value="数码家电">数码家电</Select.Option>
-              <Select.Option value="美妆个护">美妆个护</Select.Option>
-              <Select.Option value="珠宝首饰">珠宝首饰</Select.Option>
-              <Select.Option value="母婴玩具">母婴玩具</Select.Option>
-              <Select.Option value="食品酒饮">食品酒饮</Select.Option>
-              <Select.Option value="家居生活">家居生活</Select.Option>
-              <Select.Option value="运动户外">运动户外</Select.Option>
-              <Select.Option value="汽车用品">汽车用品</Select.Option>
-              <Select.Option value="图书音像">图书音像</Select.Option>
-              <Select.Option value="虚拟商品">虚拟商品</Select.Option>
-            </Select>
-            <Input.Search
-              placeholder="搜索模版名称"
-              allowClear
-              style={{ width: 250 }}
-              onSearch={(value) => setSearchText(value)}
-            />
+ if (session) {
+  // ---------- 广告内容（与全局布局保持一致） ----------
+  const adContent = (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '6px 18px',
+        flexWrap: 'wrap',
+        padding: '0 16px',
+      }}
+    >
+      {[
+        { name: 'OpenAI', color: '#10a37f' },
+        { name: 'Claude', color: '#d97706' },
+        { name: 'Gemini', color: '#4285f4' },
+        { name: 'Grok', color: '#ff6b35' },
+        { name: 'DeepSeek', color: '#4f46e5' },
+        { name: 'Qwen', color: '#ff6b00' },
+      ].map((model) => (
+        <div
+          key={model.name}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'rgba(0, 0, 0, 0.04)',
+            padding: '1px 12px 1px 6px', 
+            borderRadius: 20,
+            whiteSpace: 'nowrap',
+            cursor: 'default',
+          }}
+        >
+          <div
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: model.color,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: 10,
+              fontWeight: 700,
+            }}
+          >
+            {model.name[0]}
           </div>
-
-          <Row gutter={[16, 16]}>
-            {filteredTemplates.map((template) => (
-              <Col key={template.id} xs={24} sm={12} md={8} lg={6}>
-                <Card
-                  hoverable
-                  cover={
-                    <div style={{ height: 180, overflow: 'hidden' }}>
-                      <img
-                        src={template.image}
-                        alt={template.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    </div>
-                  }
-                  onClick={() => message.info(`选中模版：${template.name}`)}
-                >
-                  <Card.Meta title={template.name} description={template.category} />
-                </Card>
-              </Col>
-            ))}
-          </Row>
+          <span style={{ fontSize: 12, fontWeight: 500 }}>{model.name}</span>
         </div>
-      </ProLayout>
-    );
-  }
+      ))}
+
+      {/* 免费体验包 - 纯展示 */}
+      <span
+        style={{
+          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+          padding: '4px 16px',
+          borderRadius: 20,
+          fontWeight: 700,
+          fontSize: 12,
+          color: '#0b1120',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span>🎉</span> 免费体验包 
+      </span>
+    </div>
+  );
+
+  // ---------- 自定义顶部栏渲染 ----------
+  const customHeaderRender = () => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        height: '100%',
+        padding: '0 16px',
+        backgroundColor: '#fff',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        zIndex: 1000,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ fontSize: 18, fontWeight: 600, whiteSpace: 'nowrap' }}>Aguala</span>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        {adContent}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+        <NotificationDropdown />
+        <CreditDisplay />
+        <Dropdown overlay={userMenu} placement="bottomRight">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <Avatar
+              src={avatarUrl || undefined}
+              icon={!avatarUrl ? <UserOutlined /> : undefined}
+            />
+            <span style={{ color: '#333', fontSize: 14, fontWeight: 500 }}>
+              {session?.user?.phone || '用户'}
+            </span>
+          </div>
+        </Dropdown>
+      </div>
+    </div>
+  );
+
+  return (
+    <ProLayout
+      logo={false}
+      layout="mix"
+      fixedHeader={true}
+      navTheme="light"
+      colorPrimary="#101011"
+      location={{ pathname }}
+      route={{ routes: menuItems }}
+      contentStyle={{ padding: 0, paddingTop: 56 }}   // 为固定头部留空间
+      menuItemRender={(item, dom) => {
+        return <Link href={item.path || '#'}>{dom}</Link>;
+      }}
+      headerRender={customHeaderRender}   // 使用自定义头部（包含广告）
+      // ⚠️ 注意：删除了 title 和 actionsRender
+    >
+      <div style={{ padding: '0px 0px 0px 0px' }}>
+        {/* 你的页面内容保持不变 */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+          <Select
+            defaultValue="全部"
+            style={{ width: 100 }}
+            onChange={(value) => setCategory(value)}
+          >
+            <Select.Option value="全部">全部</Select.Option>
+            <Select.Option value="潮流服饰">潮流服饰</Select.Option>
+            <Select.Option value="鞋靴箱包">鞋靴箱包</Select.Option>
+            <Select.Option value="数码家电">数码家电</Select.Option>
+            <Select.Option value="美妆个护">美妆个护</Select.Option>
+            <Select.Option value="珠宝首饰">珠宝首饰</Select.Option>
+            <Select.Option value="母婴玩具">母婴玩具</Select.Option>
+            <Select.Option value="食品酒饮">食品酒饮</Select.Option>
+            <Select.Option value="家居生活">家居生活</Select.Option>
+            <Select.Option value="运动户外">运动户外</Select.Option>
+            <Select.Option value="汽车用品">汽车用品</Select.Option>
+            <Select.Option value="图书音像">图书音像</Select.Option>
+            <Select.Option value="虚拟商品">虚拟商品</Select.Option>
+          </Select>
+          <Input.Search
+            placeholder="搜索模版名称"
+            allowClear
+            style={{ width: 250 }}
+            onSearch={(value) => setSearchText(value)}
+          />
+        </div>
+
+        <Row gutter={[16, 16]}>
+          {filteredTemplates.map((template) => (
+            <Col key={template.id} xs={24} sm={12} md={8} lg={6}>
+              <Card
+                hoverable
+                cover={
+                  <div style={{ height: 180, overflow: 'hidden' }}>
+                    <img
+                      src={template.image}
+                      alt={template.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
+                }
+                onClick={() => message.info(`选中模版：${template.name}`)}
+              >
+                <Card.Meta title={template.name} description={template.category} />
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </div>
+    </ProLayout>
+  );
+}
 
   // ---------- 未登录 ----------
   return (
