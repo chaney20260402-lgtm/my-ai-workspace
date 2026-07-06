@@ -5,6 +5,7 @@ import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as
 import { DeleteOutlined, FilePdfOutlined, HistoryOutlined, PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import JSZip from 'jszip';
 import { useCredits } from '@/app/contexts/CreditsContext';
+import LoadingProgressModal from './LoadingProgressModal';
 
 const { TextArea } = Input;
 
@@ -108,11 +109,14 @@ export default function ImageGenerator({
   const [platform, setPlatform] = useState('taobao');
   const [language, setLanguage] = useState('zh');
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
+
   
   const [quantity, setQuantity] = useState(1);
   const [prompts, setPrompts] = useState<string[]>([initialPrompt || '']);
   
   const [loading, setLoading] = useState(false);
+  const [progressVisible, setProgressVisible] = useState(false);
+  const [progressTitle, setProgressTitle] = useState('');
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>(initialImages);
   // 移除了 history 和 showHistory
 
@@ -185,6 +189,9 @@ export default function ImageGenerator({
       message.warning('请至少填写一个提示词');
       return;
     }
+    // 🔥 显示进度条
+    setProgressTitle('正在生成图片...');
+    setProgressVisible(true);
 
     const platformLabel = PLATFORMS.find(p => p.value === platform)?.label || platform;
     const languageLabel = LANGUAGES.find(l => l.value === language)?.label || language;
@@ -247,8 +254,12 @@ export default function ImageGenerator({
       } catch (error) {
         console.error(`第 ${i+1} 张生成失败:`, error);
         message.error(`第 ${i+1} 张生成失败，请重试`);
-      }
-    }
+      }finally {
+    setProgressVisible(false);
+    setLoading(false);
+  }
+};
+    
 
     const updatedList = [...generatedImages, ...newImages];
     updateImages(updatedList);
@@ -369,65 +380,58 @@ export default function ImageGenerator({
   };
 
   const handleExportPSD = async (imageUrl: string) => {
-    let hideLoading: any = null;
-    try {
-      hideLoading = message.loading('正在分析图层...', 0);
-      const res = await fetch('/api/layer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl }),
-      });
-      const data = await res.json();
-      hideLoading();
+  setProgressTitle('正在导出PSD...');
+  setProgressVisible(true);
 
-      if (!data.success) {
-        if (res.status === 402) {
-          message.error(data.error || '积分不足，无法导出图层');
-        } else {
-          throw new Error(data.error || '分层失败');
-        }
-        return;
+  try {
+    const res = await fetch('/api/layer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      if (res.status === 402) {
+        message.error(data.error || '积分不足，无法导出图层');
+      } else {
+        throw new Error(data.error || '分层失败');
       }
-
-      if (data.credits !== undefined) {
-        setCredits(data.credits);
-        message.success(`✅ 图层导出成功，剩余积分：${data.credits}`);
-      }
-
-      hideLoading = message.loading('正在打包图层...', 0);
-
-      const zip = new JSZip();
-
-      for (let i = 0; i < data.layers.length; i++) {
-        const layer = data.layers[i];
-        if (!layer.data) {
-          console.warn(`图层 ${layer.name} 无数据，跳过`);
-          continue;
-        }
-        const blob = dataURLToBlob(layer.data);
-        const fileName = `图层${i+1}_${layer.name}.png`;
-        zip.file(fileName, blob);
-      }
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      if (zipBlob.size === 0) {
-        throw new Error('生成的 ZIP 为空，可能没有有效图层');
-      }
-
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(zipBlob);
-      link.download = `layers_${Date.now()}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      hideLoading();
-      message.success('图层打包下载成功！');
-    } catch (error) {
-      if (hideLoading) hideLoading();
-      console.error('导出失败:', error);
-      message.error('导出失败，请重试');
+      return;
     }
-  };
+
+    if (data.credits !== undefined) {
+      setCredits(data.credits);
+      message.success(`✅ 图层导出成功，剩余积分：${data.credits}`);
+    }
+
+    const zip = new JSZip();
+    for (let i = 0; i < data.layers.length; i++) {
+      const layer = data.layers[i];
+      if (!layer.data) continue;
+      const blob = dataURLToBlob(layer.data);
+      zip.file(`图层${i+1}_${layer.name}.png`, blob);
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    if (zipBlob.size === 0) {
+      throw new Error('生成的 ZIP 为空');
+    }
+
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(zipBlob);
+    link.download = `layers_${Date.now()}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    message.success('图层打包下载成功！');
+  } catch (error) {
+    console.error('导出失败:', error);
+    message.error('导出失败，请重试');
+  } finally {
+    setProgressVisible(false);
+  }
+};
 
   // ---------- UI 渲染 ----------
   return (
