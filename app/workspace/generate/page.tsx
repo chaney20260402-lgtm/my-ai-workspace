@@ -1,130 +1,177 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Button, Input, Select, Spin, message, Layout, Typography, Space, Dropdown, Menu } from 'antd';
-import { HistoryOutlined, SettingOutlined, ToolOutlined } from '@ant-design/icons';
+import { Button, Input, Modal, message, Typography, Spin, Layout, Space, Dropdown, Menu } from 'antd';
+import { SaveOutlined, ArrowLeftOutlined, ToolOutlined, HistoryOutlined, SettingOutlined } from '@ant-design/icons';
 import ImageGenerator from '../components/ImageGenerator';
 
 const { Content } = Layout;
 const { Title } = Typography;
 
-interface Workflow {
+// ---------- 工作流数据结构 ----------
+interface WorkflowData {
   id: number;
   name: string;
   model: string;
   size: string;
   aspectRatio: string;
-  prompt: string;
+  platform: string;
+  language: string;
+  prompts: string[];
+  referenceImages: string[];
+  generatedImages: any[];
   createdAt: string;
-  generatedImages?: any[];
 }
 
 export default function GeneratePage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const workflowId = searchParams.get('workflowId');
 
-  const [workflow, setWorkflow] = useState<Workflow | null>(null);
+  // ---------- 状态 ----------
+  const [workflowName, setWorkflowName] = useState('');
+  const [isNew, setIsNew] = useState(!workflowId);
   const [loading, setLoading] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('nanobanana-pro');
-  const [selectedSize, setSelectedSize] = useState('2K');
-  const [selectedRatio, setSelectedRatio] = useState('1:1');
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState('');
-  const [workflowImages, setWorkflowImages] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
+  // ImageGenerator 的所有状态（受控）
+  const [model, setModel] = useState('nanobanana-pro');
+  const [size, setSize] = useState('2K');
+  const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [platform, setPlatform] = useState('taobao');
+  const [language, setLanguage] = useState('zh');
+  const [prompts, setPrompts] = useState<string[]>(['']);
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  const [generatedImages, setGeneratedImages] = useState<any[]>([]);
+
+  // ---------- 命名弹窗 ----------
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [tempName, setTempName] = useState('');
+
+  // ---------- 加载已有工作流 ----------
   useEffect(() => {
     if (workflowId) {
-      const saved = localStorage.getItem('workflows');
-      if (saved) {
-        const workflows: Workflow[] = JSON.parse(saved);
-        const found = workflows.find((w) => w.id === parseInt(workflowId));
-        if (found) {
-          setWorkflow(found);
-          setSelectedModel(found.model === 'Nano Banana Pro' ? 'nanobanana-pro' : 'gpt-image-2');
-          setSelectedSize(found.size);
-          setSelectedRatio(found.aspectRatio);
-          if (found.generatedImages) setWorkflowImages(found.generatedImages);
+      setLoading(true);
+      try {
+        const saved = localStorage.getItem('workflows');
+        if (saved) {
+          const workflows: WorkflowData[] = JSON.parse(saved);
+          const found = workflows.find(w => w.id === Number(workflowId));
+          if (found) {
+            setWorkflowName(found.name);
+            setIsNew(false);
+            setModel(found.model || 'nanobanana-pro');
+            setSize(found.size || '2K');
+            setAspectRatio(found.aspectRatio || '1:1');
+            setPlatform(found.platform || 'taobao');
+            setLanguage(found.language || 'zh');
+            setPrompts(found.prompts || ['']);
+            setReferenceImages(found.referenceImages || []);
+            setGeneratedImages(found.generatedImages || []);
+          } else {
+            message.error('工作流不存在');
+            router.push('/workspace/workflows');
+          }
+        } else {
+          message.error('工作流不存在');
+          router.push('/workspace/workflows');
         }
+      } catch (error) {
+        console.error('加载工作流失败:', error);
+        message.error('加载工作流失败');
+        router.push('/workspace/workflows');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // 新建工作流：弹出命名弹窗
+      setNameModalVisible(true);
+      setLoading(false);
+    }
+  }, [workflowId, router]);
+
+  // ---------- 保存工作流 ----------
+  const handleSave = useCallback(async () => {
+  console.log('保存按钮被点击');  // 调试
+  console.log('当前 workflowName:', workflowName);  // 调试
+
+  if (!workflowName.trim()) {
+    console.log('workflowName 为空，显示警告');
+    message.warning('请先命名工作流');
+    return;
+  }
+
+  setSaving(true);
+  try {
+    console.log('开始保存...');
+    const saved = localStorage.getItem('workflows');
+    let workflows: WorkflowData[] = saved ? JSON.parse(saved) : [];
+
+    const newWorkflow: WorkflowData = {
+      id: isNew ? Date.now() : Number(workflowId),
+      name: workflowName.trim(),
+      model,
+      size,
+      aspectRatio,
+      platform,
+      language,
+      prompts,
+      referenceImages,
+      generatedImages,
+      createdAt: isNew ? new Date().toISOString() : workflows.find(w => w.id === Number(workflowId))?.createdAt || new Date().toISOString(),
+    };
+
+    if (isNew) {
+      workflows.unshift(newWorkflow);
+    } else {
+      const index = workflows.findIndex(w => w.id === Number(workflowId));
+      if (index !== -1) {
+        workflows[index] = newWorkflow;
+      } else {
+        workflows.unshift(newWorkflow);
       }
     }
-    setLoading(false);
-  }, [workflowId]);
 
-  const saveWorkflowName = (newName: string) => {
-    if (!workflow) {
-      const newWorkflow: Workflow = {
-        id: Date.now(),
-        name: newName.trim() || '未命名工作流',
-        model: selectedModel === 'nanobanana-pro' ? 'Nano Banana Pro' : 'GPT Image 2',
-        size: selectedSize,
-        aspectRatio: selectedRatio,
-        prompt: '',
-        createdAt: new Date().toISOString(),
-        generatedImages: [],
-      };
-      const saved = localStorage.getItem('workflows');
-      const workflows = saved ? JSON.parse(saved) : [];
-      workflows.push(newWorkflow);
-      localStorage.setItem('workflows', JSON.stringify(workflows));
-      setWorkflow(newWorkflow);
-      setWorkflowImages([]);
-      message.success('工作流已创建');
+    localStorage.setItem('workflows', JSON.stringify(workflows));
+    console.log('保存成功，数据：', workflows);  // 调试
+
+    if (isNew) {
+      message.success('工作流创建并保存成功');
+      router.replace(`/workspace/generate?workflowId=${newWorkflow.id}`);
+      setIsNew(false);
+    } else {
+      message.success('工作流已更新');
+    }
+  } catch (error) {
+    console.error('保存失败:', error);
+    message.error('保存失败，请重试');
+  } finally {
+    setSaving(false);
+  }
+}, [workflowName, isNew, workflowId, model, size, aspectRatio, platform, language, prompts, referenceImages, generatedImages, router]);
+
+  // ---------- 确认命名 ----------
+  const handleNameConfirm = () => {
+    if (!tempName.trim()) {
+      message.warning('请输入工作流名称');
       return;
     }
-
-    const updatedWorkflow = { ...workflow, name: newName };
-    setWorkflow(updatedWorkflow);
-
-    const saved = localStorage.getItem('workflows');
-    if (saved) {
-      const workflows: Workflow[] = JSON.parse(saved);
-      const index = workflows.findIndex((w) => w.id === workflow.id);
-      if (index !== -1) {
-        workflows[index].name = newName;
-        localStorage.setItem('workflows', JSON.stringify(workflows));
-      }
-    }
+    setWorkflowName(tempName.trim());
+    setNameModalVisible(false);
+    // 保存按钮会后续触发
   };
 
-  const updateWorkflowPrompt = (prompt: string) => {
-    if (!workflow) return;
-    const updatedWorkflow = { ...workflow, prompt };
-    setWorkflow(updatedWorkflow);
-
-    const saved = localStorage.getItem('workflows');
-    if (saved) {
-      const workflows: Workflow[] = JSON.parse(saved);
-      const index = workflows.findIndex((w) => w.id === workflow.id);
-      if (index !== -1) {
-        workflows[index].prompt = prompt;
-        localStorage.setItem('workflows', JSON.stringify(workflows));
-      }
-    }
+  // ---------- 返回列表 ----------
+  const handleBack = () => {
+    router.push('/workspace/workflows');
   };
 
-  const updateWorkflowImages = (images: any[]) => {
-    setWorkflowImages(images);
-    if (!workflow) return;
-    const updatedWorkflow = { ...workflow, generatedImages: images };
-    setWorkflow(updatedWorkflow);
-
-    const saved = localStorage.getItem('workflows');
-    if (saved) {
-      const workflows: Workflow[] = JSON.parse(saved);
-      const index = workflows.findIndex((w) => w.id === workflow.id);
-      if (index !== -1) {
-        workflows[index].generatedImages = images;
-        localStorage.setItem('workflows', JSON.stringify(workflows));
-      }
-    }
-  };
-
+  // ---------- 工具菜单 ----------
   const toolMenu = (
     <Menu
       onClick={({ key }) => {
-        if (key === 'history') router.push('/workspace/workflow');
+        if (key === 'history') router.push('/workspace/workflows');
         else if (key === 'settings') message.info('设置功能开发中');
         else message.info(`${key} 功能开发中`);
       }}
@@ -134,56 +181,94 @@ export default function GeneratePage() {
     </Menu>
   );
 
-  if (loading) return <div style={{ padding: 50, textAlign: 'center' }}><Spin size="large" /></div>;
+  // ---------- 加载状态 ----------
+  if (loading) {
+  return (
+    <div style={{ padding: 50, textAlign: 'center' }}>
+      <Spin tip="加载工作流...">
+        <div style={{ minHeight: 80 }} />  {/* 占位内容 */}
+      </Spin>
+    </div>
+  );
+}
 
+  // ---------- UI ----------
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Layout>
         {/* 顶部工具栏 */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+        <div style={{ 
+          padding: '16px 24px', 
+          borderBottom: '1px solid #f0f0f0', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          background: '#fff' 
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {isEditingName ? (
-              <Input
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                onBlur={() => { if (editedName.trim()) saveWorkflowName(editedName.trim()); setIsEditingName(false); }}
-                onPressEnter={() => { if (editedName.trim()) saveWorkflowName(editedName.trim()); setIsEditingName(false); }}
-                autoFocus
-                style={{ fontSize: 18, fontWeight: 'bold', width: 200 }}
-              />
-            ) : (
-              <Title level={4} style={{ margin: 0, cursor: 'pointer' }} onClick={() => { setEditedName(workflow?.name || '未命名工作流'); setIsEditingName(true); }}>
-                {workflow?.name || '未命名工作流'}
-              </Title>
-            )}
-            {/* 已移除 "📝 文字生图" 标签 */}
+            <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
+              返回列表
+            </Button>
+            <Title level={4} style={{ margin: 0 }}>
+              {workflowName || '未命名工作流'}
+            </Title>
           </div>
           <Space size="middle">
-            {/* 已移除 "运行" 按钮 */}
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={handleSave}
+              loading={saving}
+            >
+              保存工作流
+            </Button>
             <Dropdown overlay={toolMenu} trigger={['hover']} placement="bottomRight">
               <Button icon={<ToolOutlined />}>菜单</Button>
             </Dropdown>
           </Space>
         </div>
 
-        <Content style={{ padding: '30px', minHeight: 'calc(100vh - 64px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', background: '#f5f7fa' }}>
+        <Content style={{ 
+          padding: '30px', 
+          minHeight: 'calc(100vh - 64px)', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'flex-start', 
+          background: '#f5f7fa' 
+        }}>
           <div style={{ width: '100%', maxWidth: 1500, margin: '0 auto' }}>
-            {workflowImages.length > 0 && (
-              <div style={{ marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+            {/* 历史图片预览 */}
+            {generatedImages.length > 0 && (
+              <div style={{ 
+                marginBottom: 16, 
+                background: '#fff', 
+                padding: '12px 16px', 
+                borderRadius: 8, 
+                border: '1px solid #f0f0f0' 
+              }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <span style={{ fontWeight: 500, fontSize: 14 }}>📸 工作流历史图片</span>
-                  <span style={{ color: '#999', fontSize: 12 }}>共 {workflowImages.length} 张</span>
+                  <span style={{ color: '#999', fontSize: 12 }}>共 {generatedImages.length} 张</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-                  {workflowImages.map((img, idx) => (
-                    <div key={img.id} style={{ flexShrink: 0, position: 'relative' }}>
+                  {generatedImages.map((img, idx) => (
+                    <div key={img.id || idx} style={{ flexShrink: 0, position: 'relative' }}>
                       <img
                         src={img.url}
                         alt={`历史图片 ${idx+1}`}
                         style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #e8e8e8' }}
-                        onClick={() => { message.info(`提示词: ${img.prompt.substring(0, 50)}...`); }}
+                        onClick={() => { message.info(`提示词: ${img.prompt?.substring(0, 50) || ''}...`); }}
                       />
-                      <div style={{ position: 'absolute', bottom: 2, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '0 4px', borderRadius: 4 }}>
+                      <div style={{ 
+                        position: 'absolute', 
+                        bottom: 2, 
+                        right: 4, 
+                        background: 'rgba(0,0,0,0.6)', 
+                        color: '#fff', 
+                        fontSize: 10, 
+                        padding: '0 4px', 
+                        borderRadius: 4 
+                      }}>
                         #{idx+1}
                       </div>
                     </div>
@@ -192,18 +277,54 @@ export default function GeneratePage() {
               </div>
             )}
 
+            {/* 图片生成器组件（受控） */}
             <ImageGenerator
-              initialPrompt={workflow?.prompt || ''}
-              initialModel={selectedModel}
-              initialSize={selectedSize}
-              initialAspectRatio={selectedRatio}
-              initialImages={workflowImages}
-              onPromptChange={(prompt) => { if (workflow && prompt) updateWorkflowPrompt(prompt); }}
-              onImagesChange={(images) => updateWorkflowImages(images)}
+              initialModel={model}
+              initialSize={size}
+              initialAspectRatio={aspectRatio}
+              initialPrompts={prompts}
+              initialReferenceImages={referenceImages}
+              initialImages={generatedImages}
+              onModelChange={setModel}
+              onSizeChange={setSize}
+              onAspectRatioChange={setAspectRatio}
+              onPlatformChange={setPlatform}
+              onLanguageChange={setLanguage}
+              onPromptsChange={setPrompts}
+              onReferenceImagesChange={setReferenceImages}
+              onImagesChange={setGeneratedImages}
+              onGenerateSuccess={(url) => {
+                // 图片生成成功时的额外处理（可选）
+                console.log('图片生成成功:', url);
+              }}
             />
           </div>
         </Content>
       </Layout>
+
+      {/* 命名弹窗 */}
+      <Modal
+        title="为工作流命名"
+        open={nameModalVisible}
+        onOk={handleNameConfirm}
+        onCancel={() => {
+          // 如果取消，返回列表
+          router.push('/workspace/workflows');
+        }}
+        closable={false}
+        maskClosable={false}
+      >
+        <Input
+          placeholder="请输入工作流名称（如：电商主图生成）"
+          value={tempName}
+          onChange={(e) => setTempName(e.target.value)}
+          onPressEnter={handleNameConfirm}
+          autoFocus
+        />
+        <div style={{ marginTop: 8, color: '#999', fontSize: 13 }}>
+          命名后，您的工作流将被保存到列表中
+        </div>
+      </Modal>
     </Layout>
   );
 }

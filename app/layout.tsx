@@ -11,6 +11,7 @@ import './globals.css';
 import NotificationDropdown from '@/app/workspace/components/NotificationDropdown';
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
 import { CreditsProvider, useCredits } from '@/app/contexts/CreditsContext';
+import { App as AntdApp } from 'antd';
 
 const { Text } = Typography;
 
@@ -170,7 +171,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SessionProvider>
           <CreditsProvider>
+            <AntdApp> 
             <LayoutContent>{children}</LayoutContent>
+            </AntdApp>
           </CreditsProvider>
         </SessionProvider>
       </body>

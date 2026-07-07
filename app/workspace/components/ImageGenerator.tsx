@@ -6,6 +6,8 @@ import { DeleteOutlined, FilePdfOutlined, HistoryOutlined, PlusOutlined, CloseCi
 import JSZip from 'jszip';
 import { useCredits } from '@/app/contexts/CreditsContext';
 import LoadingProgressModal from './LoadingProgressModal';
+import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
+import { StarOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-design/icons';
 
 const { TextArea } = Input;
 
@@ -18,8 +20,16 @@ interface ImageGeneratorProps {
   onGenerateSuccess?: (imageUrl: string) => void;
   onPromptChange?: (prompt: string) => void;
   onImagesChange?: (images: GeneratedImage[]) => void;
+  initialPrompts?: string[];
+  initialReferenceImages?: string[];
+  onModelChange?: (model: string) => void;
+  onSizeChange?: (size: string) => void;
+  onAspectRatioChange?: (aspect: string) => void;
+  onPlatformChange?: (platform: string) => void;
+  onLanguageChange?: (language: string) => void;
+  onPromptsChange?: (prompts: string[]) => void;
+  onReferenceImagesChange?: (images: string[]) => void;
 }
-
 interface GeneratedImage {
   id: string;
   url: string;
@@ -76,20 +86,129 @@ const LANGUAGES = [
   { value: 'ms', label: 'Bahasa Melayu' },
 ];
 
+const providerIcons: Record<string, React.ReactNode> = {
+  openai: <OpenAI size={18} />,
+  anthropic: <Claude size={18} />,
+  gemini: <Gemini size={18} />,
+  deepseek: <DeepSeek size={18} />,
+  qwen: <Qwen size={18} />,
+  banana: <ThunderboltOutlined style={{ fontSize: 18, color: '#f59e0b' }} />,
+  seedream: <ExperimentOutlined style={{ fontSize: 18, color: '#8b5cf6' }} />,
+  wan: <ExperimentOutlined style={{ fontSize: 18, color: '#06b6d4' }} />,
+  midjourney: <ExperimentOutlined style={{ fontSize: 18, color: '#ec4899' }} />,
+  default: <StarOutlined style={{ fontSize: 18 }} />,
+};
 const modelOptions = [
-  { value: 'nanobanana-pro', label: '🍌 Nano Banana Pro' },
-  { value: 'nanobanana-2', label: '🍌 Nano Banana 2' },
-  { value: 'gpt-image-2', label: '🖼️ GPT Image 2' },
-  { value: 'seedream-5.0-lite', label: '✨ Seedream 5.0 Lite' },
-  { value: 'seedream-4.5', label: '✨ Seedream 4.5' },
-  { value: 'seedream-4.0', label: '✨ Seedream 4.0' },
-  { value: 'wan-2.7', label: '🌊 Wan 2.7' },
-  { value: 'wan-2.7-pro', label: '🌊 Wan 2.7 Pro' },
-  { value: 'wan-2.6', label: '🌊 Wan 2.6' },
-  { value: 'qwen-edit-max', label: '✏️ Qwen Edit Max' },
-  { value: 'midjourney-v8.1', label: '🎨 MidJourney V8.1' },
-  { value: 'midjourney-niji', label: '🎨 MidJourney Niji' },
+  { 
+    value: 'nanobanana-pro', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.banana}
+        Nano Banana Pro
+      </span>
+    )
+  },
+  { 
+    value: 'nanobanana-2', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.banana}
+        Nano Banana 2
+      </span>
+    )
+  },
+  { 
+    value: 'gpt-image-2', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.openai}
+        GPT Image 2
+      </span>
+    )
+  },
+  { 
+    value: 'seedream-5.0-lite', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.seedream}
+        Seedream 5.0 Lite
+      </span>
+    )
+  },
+  { 
+    value: 'seedream-4.5', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.seedream}
+        Seedream 4.5
+      </span>
+    )
+  },
+  { 
+    value: 'seedream-4.0', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.seedream}
+        Seedream 4.0
+      </span>
+    )
+  },
+  { 
+    value: 'wan-2.7', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.wan}
+        Wan 2.7
+      </span>
+    )
+  },
+  { 
+    value: 'wan-2.7-pro', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.wan}
+        Wan 2.7 Pro
+      </span>
+    )
+  },
+  { 
+    value: 'wan-2.6', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.wan}
+        Wan 2.6
+      </span>
+    )
+  },
+  { 
+    value: 'qwen-edit-max', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.qwen}
+        Qwen Edit Max
+      </span>
+    )
+  },
+  { 
+    value: 'midjourney-v8.1', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.midjourney}
+        MidJourney V8.1
+      </span>
+    )
+  },
+  { 
+    value: 'midjourney-niji', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.midjourney}
+        MidJourney Niji
+      </span>
+    )
+  },
 ];
+
 
 export default function ImageGenerator({
   initialPrompt = '',
@@ -100,6 +219,15 @@ export default function ImageGenerator({
   onGenerateSuccess,
   onPromptChange,
   onImagesChange,
+  initialPrompts = [],
+  initialReferenceImages = [],
+  onModelChange,
+  onSizeChange,
+  onAspectRatioChange,
+  onPlatformChange,
+  onLanguageChange,
+  onPromptsChange,
+  onReferenceImagesChange,
 }: ImageGeneratorProps) {
   const { setCredits } = useCredits();
 
@@ -122,14 +250,18 @@ export default function ImageGenerator({
 
   // 当数量变化时，调整prompts数组长度
   useEffect(() => {
-    setPrompts(prev => {
-      const newPrompts = [...prev];
-      while (newPrompts.length < quantity) {
-        newPrompts.push('');
-      }
-      return newPrompts.slice(0, quantity);
-    });
-  }, [quantity]);
+  setPrompts(prev => {
+    const newPrompts = [...prev];
+    while (newPrompts.length < quantity) {
+      newPrompts.push('');
+    }
+    const result = newPrompts.slice(0, quantity);
+    if (onPromptsChange) {
+      onPromptsChange(result);
+    }
+    return result;
+  });
+}, [quantity]);
 
   // 当 initialPrompt 变化时，更新第一个提示词
   useEffect(() => {
@@ -148,12 +280,48 @@ export default function ImageGenerator({
       onPromptChange(prompts[0]);
     }
   }, [prompts, onPromptChange]);
+  useEffect(() => {
+  if (onModelChange) onModelChange(model);
+}, [model, onModelChange]);
+
+useEffect(() => {
+  if (onSizeChange) onSizeChange(size);
+}, [size, onSizeChange]);
+
+useEffect(() => {
+  if (onAspectRatioChange) onAspectRatioChange(aspectRatio);
+}, [aspectRatio, onAspectRatioChange]);
+
+useEffect(() => {
+  if (onPlatformChange) onPlatformChange(platform);
+}, [platform, onPlatformChange]);
+
+useEffect(() => {
+  if (onLanguageChange) onLanguageChange(language);
+}, [language, onLanguageChange]);
+
+
+// 2️⃣ 初始化外部数据：当父组件传入新数据时同步更新
+useEffect(() => {
+  if (initialPrompts && initialPrompts.length > 0) {
+    setPrompts(initialPrompts);
+  }
+}, [initialPrompts]);
+
+useEffect(() => {
+  if (initialReferenceImages) {
+    setReferenceImages(initialReferenceImages);
+  }
+}, [initialReferenceImages]);
 
   const updatePrompt = (index: number, value: string) => {
-    setPrompts(prev => {
-      const newPrompts = [...prev];
-      newPrompts[index] = value;
-      return newPrompts;
+  setPrompts(prev => {
+    const newPrompts = [...prev];
+    newPrompts[index] = value;
+    if (onPromptsChange) {
+      onPromptsChange(newPrompts);
+    }
+    return newPrompts;
     });
   };
 
@@ -165,14 +333,22 @@ export default function ImageGenerator({
     }
     const reader = new FileReader();
     reader.onload = (e) => {
-      setReferenceImages(prev => [...prev, e.target?.result as string]);
-    };
-    reader.readAsDataURL(file);
+    const newImages = [...referenceImages, e.target?.result as string];
+    setReferenceImages(newImages);
+    if (onReferenceImagesChange) {
+      onReferenceImagesChange(newImages);
+    }
   };
+  reader.readAsDataURL(file);
+};
 
   const removeReferenceImage = (index: number) => {
-    setReferenceImages(prev => prev.filter((_, i) => i !== index));
-  };
+  const newImages = referenceImages.filter((_, i) => i !== index);
+  setReferenceImages(newImages);
+  if (onReferenceImagesChange) {
+    onReferenceImagesChange(newImages);
+  }
+};
 
   // 更新图片列表并通知父组件
   const updateImages = (newImages: GeneratedImage[]) => {

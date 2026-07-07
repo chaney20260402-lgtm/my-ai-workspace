@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button, Card, message, Typography, Space, Empty, Row, Col } from 'antd';
+import { Button, Card, message, Typography, Space, Empty, Row, Col, Tag } from 'antd';
 import { DeleteOutlined, PlayCircleOutlined, LeftOutlined, PlusOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
-
 const { Title } = Typography;
 
 interface Workflow {
@@ -13,7 +12,11 @@ interface Workflow {
   model: string;
   size: string;
   aspectRatio: string;
-  prompt: string;
+  prompt?: string;          // 旧版
+  prompts?: string[];       // 新版
+  platform?: string;
+  language?: string;
+  referenceImages?: string[];
   createdAt: string;
   generatedImages?: any[];
 }
@@ -40,7 +43,7 @@ export default function WorkflowPage() {
   }, []);
 
   const handleDelete = (id: number, e: React.MouseEvent) => {
-    e.stopPropagation(); // 只在删除按钮阻止冒泡
+    e.stopPropagation();
     const updated = workflows.filter((item) => item.id !== id);
     setWorkflows(updated);
     localStorage.setItem('workflows', JSON.stringify(updated));
@@ -48,12 +51,22 @@ export default function WorkflowPage() {
   };
 
   const handleRun = (id: number, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation(); // 运行按钮也阻止冒泡，但不影响卡片点击
+    if (e) e.stopPropagation();
     router.push(`/workspace/generate?workflowId=${id}`);
   };
 
   const handleCreateNew = () => {
     router.push('/workspace/generate');
+  };
+
+  // 获取提示词显示文本
+  const getPromptText = (item: Workflow) => {
+    if (item.prompts && item.prompts.length > 0) {
+      const nonEmpty = item.prompts.filter(p => p.trim());
+      if (nonEmpty.length === 0) return '（未填写）';
+      return nonEmpty.join('；');
+    }
+    return item.prompt || '（未填写）';
   };
 
   return (
@@ -150,6 +163,12 @@ export default function WorkflowPage() {
                 <p style={{ margin: '4px 0', fontSize: 13, color: '#555' }}>
                   <strong>比例：</strong>{item.aspectRatio}
                 </p>
+                {(item.platform || item.language) && (
+                  <p style={{ margin: '4px 0', fontSize: 12, color: '#888' }}>
+                    {item.platform && <Tag>{item.platform}</Tag>}
+                    {item.language && <Tag>{item.language}</Tag>}
+                  </p>
+                )}
                 <p
                   style={{
                     margin: '8px 0 4px 0',
@@ -162,7 +181,7 @@ export default function WorkflowPage() {
                     lineHeight: '1.5',
                   }}
                 >
-                  <strong>提示词：</strong>{item.prompt || '（未填写）'}
+                  <strong>提示词：</strong>{getPromptText(item)}
                 </p>
                 {item.generatedImages && item.generatedImages.length > 0 && (
                   <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>

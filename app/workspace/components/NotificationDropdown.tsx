@@ -121,7 +121,7 @@ export default function NotificationDropdown() {
 
   return (
     <Dropdown
-      overlay={menu}
+       menu={{ items: menu.props.items }} 
       trigger={['click']}
       placement="bottomRight"
       open={visible}
