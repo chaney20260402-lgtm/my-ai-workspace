@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import NotificationDropdown from './components/NotificationDropdown';
 import { MailOutlined } from '@ant-design/icons';
 import CreditDisplay from './components/CreditDisplay';
+import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -856,25 +857,28 @@ const handlePasswordLogin = async () => {
 
  if (session) {
   // ---------- 广告内容（与全局布局保持一致） ----------
-  const adContent = (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '6px 18px',
-        flexWrap: 'wrap',
-        padding: '0 16px',
-      }}
-    >
-      {[
-        { name: 'OpenAI', color: '#10a37f' },
-        { name: 'Claude', color: '#d97706' },
-        { name: 'Gemini', color: '#4285f4' },
-        { name: 'Grok', color: '#ff6b35' },
-        { name: 'DeepSeek', color: '#4f46e5' },
-        { name: 'Qwen', color: '#ff6b00' },
-      ].map((model) => (
+const adContent = (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px 18px',
+      flexWrap: 'wrap',
+      padding: '0 16px',
+    }}
+  >
+    {[
+      { name: 'OpenAI', icon: OpenAI, color: '#10a37f' },
+      { name: 'Claude', icon: Claude, color: '#d97706' },
+      { name: 'Gemini', icon: Gemini, color: '#4285f4' },
+      // Grok 可能没有，暂时保留首字母或使用占位
+      { name: 'Grok', icon: null, color: '#ff6b35' },
+      { name: 'DeepSeek', icon: DeepSeek, color: '#4f46e5' },
+      { name: 'Qwen', icon: Qwen, color: '#ff6b00' },
+    ].map((model) => {
+      const IconComponent = model.icon;
+      return (
         <div
           key={model.name}
           style={{
@@ -882,51 +886,56 @@ const handlePasswordLogin = async () => {
             alignItems: 'center',
             gap: 6,
             background: 'rgba(0, 0, 0, 0.04)',
-            padding: '1px 12px 1px 6px', 
+            padding: '1px 12px 1px 6px',
             borderRadius: 20,
             whiteSpace: 'nowrap',
             cursor: 'default',
           }}
         >
-          <div
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: '50%',
-              background: model.color,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: 10,
-              fontWeight: 700,
-            }}
-          >
-            {model.name[0]}
-          </div>
+          {IconComponent ? (
+            <IconComponent size={18} color={model.color} />
+          ) : (
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                background: model.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+              }}
+            >
+              {model.name[0]}
+            </div>
+          )}
           <span style={{ fontSize: 12, fontWeight: 500 }}>{model.name}</span>
         </div>
-      ))}
+      );
+    })}
 
-      {/* 免费体验包 - 纯展示 */}
-      <span
-        style={{
-          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-          padding: '4px 16px',
-          borderRadius: 20,
-          fontWeight: 700,
-          fontSize: 12,
-          color: '#0b1120',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <span>🎉</span> 免费体验包 
-      </span>
-    </div>
-  );
+    {/* 免费体验包 - 保持不变 */}
+    <span
+      style={{
+        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+        padding: '4px 16px',
+        borderRadius: 20,
+        fontWeight: 700,
+        fontSize: 12,
+        color: '#0b1120',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span>🎉</span> 免费体验包
+    </span>
+  </div>
+);
 
   // ---------- 自定义顶部栏渲染 ----------
   const customHeaderRender = () => (
@@ -944,6 +953,7 @@ const handlePasswordLogin = async () => {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        
         <span style={{ fontSize: 18, fontWeight: 600, whiteSpace: 'nowrap' }}>Aguala</span>
       </div>
 
@@ -971,7 +981,13 @@ const handlePasswordLogin = async () => {
 
   return (
     <ProLayout
-      logo={false}
+      logo={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <OpenAI size={24} color="#10a37f" />
+      <Claude size={24} color="#d97706" />
+      <Gemini size={24} color="#4285F4" />
+      <DeepSeek size={24} color="#06b6d4" />
+      <Qwen size={24} color="#6c5ce7" />
+    </div>}
       layout="mix"
       fixedHeader={true}
       navTheme="light"
@@ -985,7 +1001,7 @@ const handlePasswordLogin = async () => {
       headerRender={customHeaderRender}   // 使用自定义头部（包含广告）
       // ⚠️ 注意：删除了 title 和 actionsRender
     >
-      <div style={{ padding: '0px 0px 0px 0px' }}>
+      <div style={{ padding: '24px' }}>
         {/* 你的页面内容保持不变 */}
         <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
           <Select
