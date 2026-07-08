@@ -874,10 +874,13 @@ const adContent = (
     >
     {/* ✅ 新内容：品牌宣传页 + 魔方 */}
       <div style={{
-        minHeight: 'calc(100vh - 56px)',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '40px',
+       height: 'calc(100vh - 56px)',   // 固定高度，不随内容变化
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'flex-start',
+  padding: '16px 24px',
+  overflow: 'hidden',             // 禁止滚动
+  boxSizing: 'border-box',
       }}>
         <div style={{
           maxWidth: 1400,
@@ -1009,8 +1012,8 @@ const adContent = (
 
           {/* 右侧 3D 魔方 - 正中心放大 */}
 <div style={{
-  width: 1300,
-  height: 20,
+  width: 1500,
+  height: 0,
   flexShrink: 0,
   position: 'relative',
   margin: '0 auto',
