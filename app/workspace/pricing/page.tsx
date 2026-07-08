@@ -21,17 +21,8 @@ const membershipPlans = [
     credits: 100,
     features: [
       '当月deals额度: 100',
-      '模板使用',
-      '团队与协作效益',
-      '账号数量: 1个',
-      '商品库多席位: 1个',
-      '工作流工具的使用',
-      '编辑模版',
-      'AI工具权益',
-      '爆款复刻工具使用',
-      '爆款复刻后工作流获取',
-      '形象制作和形象库使用',
-      '白底图制作工具使用',
+      '同时调用数量: 5',
+      '可使用模型数量: 1',
     ],
     color: '#f0f2f5',
     buttonColor: '#1890ff',
@@ -46,17 +37,9 @@ const membershipPlans = [
     credits: 1500,
     features: [
       '当月积分额度: 1500',
-      '模板使用',
-      '团队与协作效益',
-      '账号数量: 4个',
-      '商品库多席位: 3个',
-      '工作流工具的使用',
-      '编辑模版',
-      'AI工具权益',
-      '爆款复刻工具使用',
-      '爆款复刻后工作流获取',
-      '形象制作和形象库使用',
-      '白底图制作工具使用',
+      '同时调用数量: 10',
+      '可使用模型数量: 10',
+      '导出PSD功能分图层',
     ],
     color: '#e6f7ff',
     buttonColor: '#1890ff',
@@ -71,17 +54,10 @@ const membershipPlans = [
     credits: 7500,
     features: [
       '当月积分额度: 7500',
-      '模板使用',
-      '团队与协作效益',
-      '账号数量: 20个',
-      '商品库多席位: 不限制',
-      '工作流工具的使用',
-      '编辑模版',
-      'AI工具权益',
-      '爆款复刻工具使用',
-      '爆款复刻后工作流获取',
-      '形象制作和形象库使用',
-      '白底图制作工具使用',
+      '同时调用数量: 15',
+      '可使用模型数量: 12+',
+      '导出PSD功能分图层',
+      
     ],
     color: '#fff7e6',
     buttonColor: '#faad14',
@@ -362,8 +338,11 @@ export default function PricingPage() {
         {creditPlans.map((plan) => (
           <Col xs={24} sm={8} key={plan.id}>
             <Card
-              title={`¥${plan.amount}`}
-              extra={<Tag color="green">{plan.credits} 积分</Tag>}
+              title={
+    <span style={{ fontSize: 28, fontWeight: 700, color: '#580f0f' }}>
+      ¥{plan.amount}
+    </span>
+  }
               style={{ textAlign: 'center' }}
             >
               <div style={{ fontSize: 32, fontWeight: 'bold', color: '#1677ff' }}>
