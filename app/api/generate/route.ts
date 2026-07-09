@@ -85,16 +85,19 @@ function buildEnhancedPrompt(originalPrompt: string, platform?: string, language
 
 // ========== 模型配置表 ==========
 const modelConfigs: Record<string, any> = {
-  // ---------- Gemini 格式（支持参考图） ----------
+  // ============================================================
+  // 1. nanobanana-pro（Gemini 格式，支持参考图）
+  // ============================================================
   'nanobanana-pro': {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
-      const parts: any[] = [{ text: prompt }];
-       const finalPrompt = referenceImages && referenceImages.length > 0 
-      ? prompt 
-      : `生成一张图片：${prompt}`;
-    
-    parts.push({ text: finalPrompt });
+      const parts: any[] = [];
+      // ✅ 纯文本时添加“生成一张图片”指令，有参考图时直接用原提示词
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      parts.push({ text: finalPrompt });
+
       if (referenceImages && referenceImages.length > 0) {
         for (const imgData of referenceImages) {
           const base64 = imgData.split(',')[1] || imgData;
@@ -119,54 +122,152 @@ const modelConfigs: Record<string, any> = {
     },
     extractImage: (data: any) => {
       const parts = data.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
-    if (imagePart) {
-      return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-    }
-    // 如果没有图片，返回 null 触发错误处理
-    return null;
+      const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
+      return imagePart ? `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` : null;
     },
   },
+
+  // ============================================================
+  // 2. nano-banana（Gemini 格式，支持参考图）
+  // ============================================================
   'nano-banana': {
-  endpoint: 'https://api.apiyi.com/v1/images/generations',
-  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-    model: 'nano-banana',
-    prompt,
-    n: 1,
-    size: sizePresets[size] || '1024x1024',
-  }),
-  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-},
-// 🔥 高优先级 - Nano Banana 2
-'nano-banana-2': {
-  endpoint: 'https://api.apiyi.com/v1/images/generations',
-  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-    model: 'nano-banana-2',
-    prompt,
-    n: 1,
-    size: sizePresets[size] || '1024x1024',
-  }),
-  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-},
-  // ---------- 其他模型（不支持参考图，仅文本） ----------
+    endpoint: 'https://api.apiyi.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent',
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const parts: any[] = [];
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      parts.push({ text: finalPrompt });
+
+      if (referenceImages && referenceImages.length > 0) {
+        for (const imgData of referenceImages) {
+          const base64 = imgData.split(',')[1] || imgData;
+          parts.push({
+            inline_data: {
+              mime_type: 'image/png',
+              data: base64,
+            },
+          });
+        }
+      }
+      return {
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+          imageConfig: {
+            imageSize: size || '2K',
+            aspectRatio: aspectRatio || '1:1',
+          },
+        },
+      };
+    },
+    extractImage: (data: any) => {
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
+      return imagePart ? `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` : null;
+    },
+  },
+
+  // ============================================================
+  // 3. nano-banana-2（Gemini 格式，支持参考图）
+  // ============================================================
+  'nano-banana-2': {
+    endpoint: 'https://api.apiyi.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent',
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const parts: any[] = [];
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      parts.push({ text: finalPrompt });
+
+      if (referenceImages && referenceImages.length > 0) {
+        for (const imgData of referenceImages) {
+          const base64 = imgData.split(',')[1] || imgData;
+          parts.push({
+            inline_data: {
+              mime_type: 'image/png',
+              data: base64,
+            },
+          });
+        }
+      }
+      return {
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+          imageConfig: {
+            imageSize: size || '2K',
+            aspectRatio: aspectRatio || '1:1',
+          },
+        },
+      };
+    },
+    extractImage: (data: any) => {
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
+      return imagePart ? `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` : null;
+    },
+  },
+
+  // ============================================================
+  // 4. gemini-3-pro-image-preview（Gemini 格式，支持参考图）
+  // ============================================================
+  'gemini-3-pro-image-preview': {
+    endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const parts: any[] = [];
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      parts.push({ text: finalPrompt });
+
+      if (referenceImages && referenceImages.length > 0) {
+        for (const imgData of referenceImages) {
+          const base64 = imgData.split(',')[1] || imgData;
+          parts.push({
+            inline_data: {
+              mime_type: 'image/png',
+              data: base64,
+            },
+          });
+        }
+      }
+      return {
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+          imageConfig: {
+            imageSize: size || '2K',
+            aspectRatio: aspectRatio || '1:1',
+          },
+        },
+      };
+    },
+    extractImage: (data: any) => {
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
+      return imagePart ? `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` : null;
+    },
+  },
+
+  // ============================================================
+  // 5. gpt-image-2（OpenAI 兼容格式）
+  // ============================================================
   'gpt-image-2': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string, _referenceImages?: string[]) => {
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      // ✅ 纯文本时添加“生成一张图片”指令
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
       const baseSize = sizePresets[size] || '1024x1024';
-      const ratio = aspectRatioToSize[aspectRatio] || { width: 1, height: 1 };
-      const base = parseInt(baseSize.split('x')[0]);
-      let width = base, height = base;
-      if (ratio.width > ratio.height) { height = Math.round(base / (ratio.width / ratio.height)); width = base; }
-      else if (ratio.width < ratio.height) { width = Math.round(base / (ratio.height / ratio.width)); height = base; }
-      width = Math.floor(width / 8) * 8;
-      height = Math.floor(height / 8) * 8;
       return {
         model: 'gpt-image-2',
-        prompt,
+        prompt: finalPrompt,
         n: 1,
-        size: `${width}x${height}`,
+        size: baseSize,
         quality: 'medium',
-        output_format: 'png',
+        // ❌ 移除 output_format
       };
     },
     extractImage: (data: any) => {
@@ -174,76 +275,106 @@ const modelConfigs: Record<string, any> = {
       return imageData?.b64_json ? `data:image/png;base64,${imageData.b64_json}` : imageData?.url || null;
     },
   },
-  // 🔥 高优先级 - GPT Image 2 变体
-'gpt-image-2-all': {
-  endpoint: 'https://api.apiyi.com/v1/images/generations',
-  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-    model: 'gpt-image-2-all',
-    prompt,
-    n: 1,
-    size: sizePresets[size] || '1024x1024',
-  }),
-  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-},
-   'gemini-3-pro-image-preview': {
+
+  // ============================================================
+  // 6. gpt-image-2-all（OpenAI 兼容格式）
+  // ============================================================
+  'gpt-image-2-all': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'gemini-3-pro-image-preview',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      return {
+        model: 'gpt-image-2-all',
+        prompt: finalPrompt,
+        n: 1,
+        size: sizePresets[size] || '1024x1024',
+      };
+    },
     extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
   },
 
-  // ✅ Seedream 系列
+  // ============================================================
+  // 7. seedream-5-0-260128（OpenAI 兼容格式）
+  // ============================================================
   'seedream-5-0-260128': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'seedream-5-0-260128',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      return {
+        model: 'seedream-5-0-260128',
+        prompt: finalPrompt,
+        n: 1,
+        size: sizePresets[size] || '1024x1024',
+        aspect_ratio: aspectRatio || '1:1',
+        // ❌ 移除 output_format
+      };
+    },
     extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
   },
+
+  // ============================================================
+  // 8. flux-2-pro（OpenAI 兼容格式）
+  // ============================================================
   'flux-2-pro': {
-  endpoint: 'https://api.apiyi.com/v1/images/generations',
-  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-    model: 'flux-2-pro',
-    prompt,
-    n: 1,
-    size: sizePresets[size] || '1024x1024',
-  }),
-  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-},
+    endpoint: 'https://api.apiyi.com/v1/images/generations',
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      return {
+        model: 'flux-2-pro',
+        prompt: finalPrompt,
+        n: 1,
+        size: sizePresets[size] || '1024x1024',
+        aspect_ratio: aspectRatio || '1:1',
+      };
+    },
+    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+  },
 
- // 🔥 高优先级 - Flux 2 系列
-'flux-2-max': {
-  endpoint: 'https://api.apiyi.com/v1/images/generations',
-  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-    model: 'flux-2-max',
-    prompt,
-    n: 1,
-    size: sizePresets[size] || '1024x1024',
-  }),
-  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-},
+  // ============================================================
+  // 9. flux-2-max（OpenAI 兼容格式）
+  // ============================================================
+  'flux-2-max': {
+    endpoint: 'https://api.apiyi.com/v1/images/generations',
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      return {
+        model: 'flux-2-max',
+        prompt: finalPrompt,
+        n: 1,
+        size: sizePresets[size] || '1024x1024',
+        aspect_ratio: aspectRatio || '1:1',
+      };
+    },
+    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+  },
 
-'flux-2-flex': {
-  endpoint: 'https://api.apiyi.com/v1/images/generations',
-  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-    model: 'flux-2-flex',
-    prompt,
-    n: 1,
-    size: sizePresets[size] || '1024x1024',
-  }),
-  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-},
+  // ============================================================
+  // 10. flux-2-flex（OpenAI 兼容格式）
+  // ============================================================
+  'flux-2-flex': {
+    endpoint: 'https://api.apiyi.com/v1/images/generations',
+    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
+      const finalPrompt = referenceImages && referenceImages.length > 0
+        ? prompt
+        : `生成一张图片：${prompt}`;
+      return {
+        model: 'flux-2-flex',
+        prompt: finalPrompt,
+        n: 1,
+        size: sizePresets[size] || '1024x1024',
+        aspect_ratio: aspectRatio || '1:1',
+      };
+    },
+    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+  },
 };
 // ========== POST 处理 ==========
 export async function POST(request: Request) {

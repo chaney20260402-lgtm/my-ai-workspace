@@ -44,6 +44,7 @@ export default function GeneratePage() {
   const [prompts, setPrompts] = useState<string[]>(['']);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [generatedImages, setGeneratedImages] = useState<any[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // ---------- 命名弹窗 ----------
   const [nameModalVisible, setNameModalVisible] = useState(false);
@@ -90,6 +91,13 @@ export default function GeneratePage() {
       setLoading(false);
     }
   }, [workflowId, router]);
+  // ✅ 新增：监听状态变化，标记有未保存的更改
+useEffect(() => {
+  // 只有当工作流已加载（有名称）时才标记
+  if (workflowName || workflowId) {
+    setHasUnsavedChanges(true);
+  }
+}, [model, size, aspectRatio, platform, language, prompts, referenceImages, generatedImages, workflowName]);
 
   // ---------- 保存工作流 ----------
   const handleSave = useCallback(async () => {
@@ -138,10 +146,13 @@ export default function GeneratePage() {
 
     if (isNew) {
       message.success('工作流创建并保存成功');
+      // ✅ 添加这一行
+    setHasUnsavedChanges(false);
       router.replace(`/workspace/generate?workflowId=${newWorkflow.id}`);
       setIsNew(false);
     } else {
       message.success('工作流已更新');
+      setHasUnsavedChanges(false);
     }
   } catch (error) {
     console.error('保存失败:', error);
@@ -150,6 +161,17 @@ export default function GeneratePage() {
     setSaving(false);
   }
 }, [workflowName, isNew, workflowId, model, size, aspectRatio, platform, language, prompts, referenceImages, generatedImages, router]);
+useEffect(() => {
+  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = '您有未保存的更改，确定要离开吗？';
+      return e.returnValue;
+    }
+  };
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+}, [hasUnsavedChanges]);
 
   // ---------- 确认命名 ----------
   const handleNameConfirm = () => {
@@ -160,11 +182,29 @@ export default function GeneratePage() {
     setWorkflowName(tempName.trim());
     setNameModalVisible(false);
     // 保存按钮会后续触发
+
   };
 
   // ---------- 返回列表 ----------
   const handleBack = () => {
-    router.push('/workspace/workflows');
+    if (hasUnsavedChanges) {
+      Modal.confirm({
+        title: '提示',
+        content: '您有未保存的更改，是否保存后再离开？',
+        okText: '保存并离开',
+        cancelText: '不保存直接离开',
+        onOk: async () => {
+          await handleSave();
+          router.push('/workspace/workflows');
+        },
+        onCancel: () => {
+          setHasUnsavedChanges(false);
+          router.push('/workspace/workflows');
+        },
+      });
+    } else {
+      router.push('/workspace/workflows');
+    }
   };
 
   // ---------- 工具菜单 ----------

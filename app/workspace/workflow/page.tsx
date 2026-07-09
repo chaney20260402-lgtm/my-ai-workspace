@@ -183,18 +183,6 @@ export default function WorkflowPage() {
                 >
                   <strong>提示词：</strong>{getPromptText(item)}
                 </p>
-                {item.generatedImages && item.generatedImages.length > 0 && (
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <img
-                      src={item.generatedImages[0].url}
-                      alt="预览"
-                      style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
-                    />
-                    <span style={{ fontSize: 12, color: '#999' }}>
-                      共 {item.generatedImages.length} 张图片
-                    </span>
-                  </div>
-                )}
               </div>
               <div style={{ marginTop: '12px', fontSize: 12, color: '#bbb', borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                 创建于：{new Date(item.createdAt).toLocaleString()}
