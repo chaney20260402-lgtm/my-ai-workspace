@@ -96,9 +96,12 @@ const providerIcons: Record<string, React.ReactNode> = {
   seedream: <ExperimentOutlined style={{ fontSize: 18, color: '#8b5cf6' }} />,
   wan: <ExperimentOutlined style={{ fontSize: 18, color: '#06b6d4' }} />,
   midjourney: <ExperimentOutlined style={{ fontSize: 18, color: '#ec4899' }} />,
+  // ✅ 新增 flux 图标
+  flux: <ExperimentOutlined style={{ fontSize: 18, color: '#a78bfa' }} />, // 紫色
   default: <StarOutlined style={{ fontSize: 18 }} />,
 };
 const modelOptions = [
+  // ✅ 保留可用的
   { 
     value: 'nanobanana-pro', 
     label: (
@@ -109,14 +112,23 @@ const modelOptions = [
     )
   },
   { 
-    value: 'nanobanana-2', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.banana}
-        Nano Banana 2
-      </span>
-    )
-  },
+  value: 'nano-banana', 
+  label: (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {providerIcons.banana}
+      Nano Banana
+    </span>
+  )
+},
+{ 
+  value: 'nano-banana-2', 
+  label: (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {providerIcons.banana}
+      Nano Banana 2
+    </span>
+  )
+},
   { 
     value: 'gpt-image-2', 
     label: (
@@ -127,87 +139,61 @@ const modelOptions = [
     )
   },
   { 
-    value: 'seedream-5.0-lite', 
+  value: 'gpt-image-2-all', 
+  label: (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {providerIcons.openai}
+      GPT Image 2 All
+    </span>
+  )
+},
+  { 
+    value: 'gemini-3-pro-image-preview', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.gemini}
+        Gemini 3 Pro Image
+      </span>
+    )
+  },
+  { 
+    value: 'seedream-5-0-260128', 
     label: (
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {providerIcons.seedream}
-        Seedream 5.0 Lite
+        Seedream 5.0
       </span>
     )
   },
   { 
-    value: 'seedream-4.5', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.seedream}
-        Seedream 4.5
-      </span>
-    )
-  },
+  value: 'flux-2-pro', 
+  label: (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {providerIcons.flux}
+      Flux 2 Pro
+    </span>
+  )
+},
+  // ✅ 新增可用模型（按照 API 易列表）
   { 
-    value: 'seedream-4.0', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.seedream}
-        Seedream 4.0
-      </span>
-    )
-  },
-  { 
-    value: 'wan-2.7', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.wan}
-        Wan 2.7
-      </span>
-    )
-  },
-  { 
-    value: 'wan-2.7-pro', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.wan}
-        Wan 2.7 Pro
-      </span>
-    )
-  },
-  { 
-    value: 'wan-2.6', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.wan}
-        Wan 2.6
-      </span>
-    )
-  },
-  { 
-    value: 'qwen-edit-max', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.qwen}
-        Qwen Edit Max
-      </span>
-    )
-  },
-  { 
-    value: 'midjourney-v8.1', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.midjourney}
-        MidJourney V8.1
-      </span>
-    )
-  },
-  { 
-    value: 'midjourney-niji', 
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {providerIcons.midjourney}
-        MidJourney Niji
-      </span>
-    )
-  },
-];
+  value: 'flux-2-max', 
+  label: (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {providerIcons.flux}
+      Flux 2 Max
+    </span>
+  )
+},
+{ 
+  value: 'flux-2-flex', 
+  label: (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {providerIcons.flux}
+      Flux 2 Flex
+    </span>
+  )
+},
+]
 
 
 export default function ImageGenerator({

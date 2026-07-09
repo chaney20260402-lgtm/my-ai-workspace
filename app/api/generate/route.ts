@@ -90,6 +90,11 @@ const modelConfigs: Record<string, any> = {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const parts: any[] = [{ text: prompt }];
+       const finalPrompt = referenceImages && referenceImages.length > 0 
+      ? prompt 
+      : `生成一张图片：${prompt}`;
+    
+    parts.push({ text: finalPrompt });
       if (referenceImages && referenceImages.length > 0) {
         for (const imgData of referenceImages) {
           const base64 = imgData.split(',')[1] || imgData;
@@ -113,42 +118,36 @@ const modelConfigs: Record<string, any> = {
       };
     },
     extractImage: (data: any) => {
-      const imageData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      return imageData ? `data:image/png;base64,${imageData}` : null;
+      const parts = data.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
+    if (imagePart) {
+      return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+    }
+    // 如果没有图片，返回 null 触发错误处理
+    return null;
     },
   },
-  'nanobanana-2': {
-    endpoint: 'https://api.apiyi.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent',
-    buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
-      const parts: any[] = [{ text: prompt }];
-      if (referenceImages && referenceImages.length > 0) {
-        for (const imgData of referenceImages) {
-          const base64 = imgData.split(',')[1] || imgData;
-          parts.push({
-            inline_data: {
-              mime_type: 'image/png',
-              data: base64,
-            },
-          });
-        }
-      }
-      return {
-        contents: [{ parts }],
-        generationConfig: {
-          responseModalities: ['IMAGE'],
-          imageConfig: {
-            imageSize: size || '2K',
-            aspectRatio: aspectRatio || '1:1',
-          },
-        },
-      };
-    },
-    extractImage: (data: any) => {
-      const imageData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      return imageData ? `data:image/png;base64,${imageData}` : null;
-    },
-  },
-
+  'nano-banana': {
+  endpoint: 'https://api.apiyi.com/v1/images/generations',
+  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
+    model: 'nano-banana',
+    prompt,
+    n: 1,
+    size: sizePresets[size] || '1024x1024',
+  }),
+  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+},
+// 🔥 高优先级 - Nano Banana 2
+'nano-banana-2': {
+  endpoint: 'https://api.apiyi.com/v1/images/generations',
+  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
+    model: 'nano-banana-2',
+    prompt,
+    n: 1,
+    size: sizePresets[size] || '1024x1024',
+  }),
+  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+},
   // ---------- 其他模型（不支持参考图，仅文本） ----------
   'gpt-image-2': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
@@ -175,10 +174,21 @@ const modelConfigs: Record<string, any> = {
       return imageData?.b64_json ? `data:image/png;base64,${imageData.b64_json}` : imageData?.url || null;
     },
   },
-  'seedream-5.0-lite': {
+  // 🔥 高优先级 - GPT Image 2 变体
+'gpt-image-2-all': {
+  endpoint: 'https://api.apiyi.com/v1/images/generations',
+  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
+    model: 'gpt-image-2-all',
+    prompt,
+    n: 1,
+    size: sizePresets[size] || '1024x1024',
+  }),
+  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+},
+   'gemini-3-pro-image-preview': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
     buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'seedream-5.0-lite',
+      model: 'gemini-3-pro-image-preview',
       prompt,
       n: 1,
       size: sizePresets[size] || '1024x1024',
@@ -187,104 +197,54 @@ const modelConfigs: Record<string, any> = {
     }),
     extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
   },
-  'seedream-4.5': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'seedream-4.5',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-  'seedream-4.0': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'seedream-4.0',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-  'wan-2.7': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'wan-2.7',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-  'wan-2.7-pro': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'wan-2.7-pro',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-  'wan-2.6': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'wan-2.6',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-  'qwen-edit-max': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'qwen-edit-max',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-  'midjourney-v8.1': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'midjourney-v8.1',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-  'midjourney-niji': {
-    endpoint: 'https://api.apiyi.com/v1/images/generations',
-    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
-      model: 'midjourney-niji',
-      prompt,
-      n: 1,
-      size: sizePresets[size] || '1024x1024',
-      aspect_ratio: aspectRatio || '1:1',
-      output_format: 'png',
-    }),
-    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
-  },
-};
 
+  // ✅ Seedream 系列
+  'seedream-5-0-260128': {
+    endpoint: 'https://api.apiyi.com/v1/images/generations',
+    buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
+      model: 'seedream-5-0-260128',
+      prompt,
+      n: 1,
+      size: sizePresets[size] || '1024x1024',
+      aspect_ratio: aspectRatio || '1:1',
+      output_format: 'png',
+    }),
+    extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+  },
+  'flux-2-pro': {
+  endpoint: 'https://api.apiyi.com/v1/images/generations',
+  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
+    model: 'flux-2-pro',
+    prompt,
+    n: 1,
+    size: sizePresets[size] || '1024x1024',
+  }),
+  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+},
+
+ // 🔥 高优先级 - Flux 2 系列
+'flux-2-max': {
+  endpoint: 'https://api.apiyi.com/v1/images/generations',
+  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
+    model: 'flux-2-max',
+    prompt,
+    n: 1,
+    size: sizePresets[size] || '1024x1024',
+  }),
+  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+},
+
+'flux-2-flex': {
+  endpoint: 'https://api.apiyi.com/v1/images/generations',
+  buildPayload: (prompt: string, size: string, aspectRatio: string) => ({
+    model: 'flux-2-flex',
+    prompt,
+    n: 1,
+    size: sizePresets[size] || '1024x1024',
+  }),
+  extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
+},
+};
 // ========== POST 处理 ==========
 export async function POST(request: Request) {
   try {
@@ -332,12 +292,15 @@ export async function POST(request: Request) {
     console.log(`📤 调用模型: ${model}, 尺寸: ${size}, 比例: ${aspectRatio}`);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
 
     let imageUrl: string | null = null;
     let apiError: any = null;
 
     try {
+      // ✅ 新增：请求日志
+  console.log(`📤 调用模型: ${model}, 尺寸: ${size}, 比例: ${aspectRatio}`);
+  console.log(`📤 请求 Payload:`, JSON.stringify(payload, null, 2));
       const response = await fetch(config.endpoint, {
         method: 'POST',
         headers: {
@@ -356,6 +319,9 @@ export async function POST(request: Request) {
         apiError = new Error(`API 调用失败: ${response.status} - ${errorText}`);
       } else {
         const data = await response.json();
+        // ✅ 新增：响应日志
+    console.log(`📥 API 响应状态: ${response.status}`);
+    console.log(`📥 API 响应数据:`, JSON.stringify(data, null, 2));
         imageUrl = config.extractImage(data);
         if (!imageUrl) {
           console.error('❌ 未提取到图片:', data);
