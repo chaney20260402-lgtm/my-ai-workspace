@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Button, Input, Modal, message, Typography, Spin, Layout, Space, Dropdown, Menu } from 'antd';
 import { SaveOutlined, ArrowLeftOutlined, ToolOutlined, HistoryOutlined, SettingOutlined } from '@ant-design/icons';
 import ImageGenerator from '../components/ImageGenerator';
+import { useWorkflow } from '@/app/contexts/WorkflowContext';
+import { useRef } from 'react';
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -44,7 +46,10 @@ export default function GeneratePage() {
   const [prompts, setPrompts] = useState<string[]>(['']);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [generatedImages, setGeneratedImages] = useState<any[]>([]);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const isInitialLoad = useRef(true);
+  
+  // ---------- 工作流上下文 ----------
+const { hasUnsavedChanges, setHasUnsavedChanges, registerSaveWorkflow, registerNavigateAfterSave } = useWorkflow();
 
   // ---------- 命名弹窗 ----------
   const [nameModalVisible, setNameModalVisible] = useState(false);
@@ -52,72 +57,62 @@ export default function GeneratePage() {
 
   // ---------- 加载已有工作流 ----------
   useEffect(() => {
-    if (workflowId) {
-      setLoading(true);
-      try {
-        const saved = localStorage.getItem('workflows');
-        if (saved) {
-          const workflows: WorkflowData[] = JSON.parse(saved);
-          const found = workflows.find(w => w.id === Number(workflowId));
-          if (found) {
-            setWorkflowName(found.name);
-            setIsNew(false);
-            setModel(found.model || 'nanobanana-pro');
-            setSize(found.size || '2K');
-            setAspectRatio(found.aspectRatio || '1:1');
-            setPlatform(found.platform || 'taobao');
-            setLanguage(found.language || 'zh');
-            setPrompts(found.prompts || ['']);
-            setReferenceImages(found.referenceImages || []);
-            setGeneratedImages(found.generatedImages || []);
-          } else {
-            message.error('工作流不存在');
-            router.push('/workspace/workflows');
-          }
+  if (workflowId) {
+    setLoading(true);
+    fetch(`/api/workflows/${workflowId}`)
+      .then(res => res.json())
+      .then(result => {
+        if (result.success) {
+          const wf = result.data;
+          setWorkflowName(wf.name);
+          setIsNew(false);
+          setModel(wf.model || 'nanobanana-pro');
+          setSize(wf.size || '2K');
+          setAspectRatio(wf.aspectRatio || '1:1');
+          setPlatform(wf.platform || 'taobao');
+          setLanguage(wf.language || 'zh');
+          setPrompts(wf.prompts || ['']);
+          setReferenceImages(wf.referenceImages || []);
+          setGeneratedImages(wf.generatedImages || []);
         } else {
-          message.error('工作流不存在');
+          message.error(result.error || '加载工作流失败');
           router.push('/workspace/workflows');
         }
-      } catch (error) {
-        console.error('加载工作流失败:', error);
+      })
+      .catch(() => {
         message.error('加载工作流失败');
         router.push('/workspace/workflows');
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      // 新建工作流：弹出命名弹窗
-      setNameModalVisible(true);
-      setLoading(false);
-    }
-  }, [workflowId, router]);
-  // ✅ 新增：监听状态变化，标记有未保存的更改
-useEffect(() => {
-  // 只有当工作流已加载（有名称）时才标记
+      })
+      .finally(() => setLoading(false));
+  } else {
+    setNameModalVisible(true);
+    setLoading(false);
+  }
+}, [workflowId, router]);
+
+  useEffect(() => {
+  // 跳过首次加载（从 localStorage 恢复数据时）
+  if (isInitialLoad.current) {
+    isInitialLoad.current = false;
+    return;
+  }
+  
+  // 只在有工作流名称时标记未保存
   if (workflowName || workflowId) {
     setHasUnsavedChanges(true);
   }
-}, [model, size, aspectRatio, platform, language, prompts, referenceImages, generatedImages, workflowName]);
+}, [model, size, aspectRatio, platform, language, prompts, referenceImages, generatedImages]);
 
   // ---------- 保存工作流 ----------
   const handleSave = useCallback(async () => {
-  console.log('保存按钮被点击');  // 调试
-  console.log('当前 workflowName:', workflowName);  // 调试
-
   if (!workflowName.trim()) {
-    console.log('workflowName 为空，显示警告');
     message.warning('请先命名工作流');
     return;
   }
 
   setSaving(true);
   try {
-    console.log('开始保存...');
-    const saved = localStorage.getItem('workflows');
-    let workflows: WorkflowData[] = saved ? JSON.parse(saved) : [];
-
-    const newWorkflow: WorkflowData = {
-      id: isNew ? Date.now() : Number(workflowId),
+    const payload = {
       name: workflowName.trim(),
       model,
       size,
@@ -127,32 +122,31 @@ useEffect(() => {
       prompts,
       referenceImages,
       generatedImages,
-      createdAt: isNew ? new Date().toISOString() : workflows.find(w => w.id === Number(workflowId))?.createdAt || new Date().toISOString(),
     };
 
-    if (isNew) {
-      workflows.unshift(newWorkflow);
-    } else {
-      const index = workflows.findIndex(w => w.id === Number(workflowId));
-      if (index !== -1) {
-        workflows[index] = newWorkflow;
-      } else {
-        workflows.unshift(newWorkflow);
-      }
+    let url = '/api/workflows';
+    let method = 'POST';
+    if (!isNew && workflowId) {
+      url = `/api/workflows/${workflowId}`;
+      method = 'PUT';
     }
 
-    localStorage.setItem('workflows', JSON.stringify(workflows));
-    console.log('保存成功，数据：', workflows);  // 调试
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await res.json();
 
-    if (isNew) {
-      message.success('工作流创建并保存成功');
-      // ✅ 添加这一行
-    setHasUnsavedChanges(false);
-      router.replace(`/workspace/generate?workflowId=${newWorkflow.id}`);
-      setIsNew(false);
-    } else {
-      message.success('工作流已更新');
+    if (result.success) {
+      message.success(isNew ? '工作流创建成功' : '工作流已更新');
       setHasUnsavedChanges(false);
+      if (isNew) {
+        router.replace(`/workspace/generate?workflowId=${result.data.id}`);
+        setIsNew(false);
+      }
+    } else {
+      message.error(result.error || '保存失败');
     }
   } catch (error) {
     console.error('保存失败:', error);
@@ -160,18 +154,32 @@ useEffect(() => {
   } finally {
     setSaving(false);
   }
-}, [workflowName, isNew, workflowId, model, size, aspectRatio, platform, language, prompts, referenceImages, generatedImages, router]);
-useEffect(() => {
-  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-    if (hasUnsavedChanges) {
-      e.preventDefault();
-      e.returnValue = '您有未保存的更改，确定要离开吗？';
-      return e.returnValue;
-    }
-  };
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-}, [hasUnsavedChanges]);
+}, [workflowName, isNew, workflowId, model, size, aspectRatio, platform, language, prompts, referenceImages, generatedImages, router, setHasUnsavedChanges]);
+
+  // ---------- 注册保存函数和跳转函数 ----------
+  useEffect(() => {
+    registerSaveWorkflow(handleSave);
+    registerNavigateAfterSave(() => {
+      router.push('/workspace/workflows');
+    });
+    
+    return () => {
+      // 清理（可选）
+    };
+  }, [handleSave, registerSaveWorkflow, registerNavigateAfterSave, router]);
+
+  // ---------- 浏览器关闭/刷新提醒 ----------
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '您有未保存的更改，确定要离开吗？';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   // ---------- 确认命名 ----------
   const handleNameConfirm = () => {
@@ -182,7 +190,6 @@ useEffect(() => {
     setWorkflowName(tempName.trim());
     setNameModalVisible(false);
     // 保存按钮会后续触发
-
   };
 
   // ---------- 返回列表 ----------
@@ -223,14 +230,14 @@ useEffect(() => {
 
   // ---------- 加载状态 ----------
   if (loading) {
-  return (
-    <div style={{ padding: 50, textAlign: 'center' }}>
-      <Spin tip="加载工作流...">
-        <div style={{ minHeight: 80 }} />  {/* 占位内容 */}
-      </Spin>
-    </div>
-  );
-}
+    return (
+      <div style={{ padding: 50, textAlign: 'center' }}>
+        <Spin tip="加载工作流...">
+          <div style={{ minHeight: 80 }} />
+        </Spin>
+      </div>
+    );
+  }
 
   // ---------- UI ----------
   return (
@@ -334,7 +341,6 @@ useEffect(() => {
               onReferenceImagesChange={setReferenceImages}
               onImagesChange={setGeneratedImages}
               onGenerateSuccess={(url) => {
-                // 图片生成成功时的额外处理（可选）
                 console.log('图片生成成功:', url);
               }}
             />
@@ -348,7 +354,6 @@ useEffect(() => {
         open={nameModalVisible}
         onOk={handleNameConfirm}
         onCancel={() => {
-          // 如果取消，返回列表
           router.push('/workspace/workflows');
         }}
         closable={false}

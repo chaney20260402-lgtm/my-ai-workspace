@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, Card, message, Typography, Space, Empty, Row, Col, Tag } from 'antd';
 import { DeleteOutlined, PlayCircleOutlined, LeftOutlined, PlusOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
+
 const { Title } = Typography;
 
 interface Workflow {
@@ -12,54 +13,74 @@ interface Workflow {
   model: string;
   size: string;
   aspectRatio: string;
-  prompt?: string;          // 旧版
-  prompts?: string[];       // 新版
+  prompt?: string;
+  prompts?: string[];
   platform?: string;
   language?: string;
   referenceImages?: string[];
   createdAt: string;
+  updatedAt?: string;
   generatedImages?: any[];
 }
 
 export default function WorkflowPage() {
   const router = useRouter();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('workflows');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const withImages = parsed.map((w: any) => ({
-          ...w,
-          generatedImages: w.generatedImages || [],
-        }));
-        setWorkflows(withImages);
-      } catch (e) {
-        console.error('解析工作流失败', e);
-        setWorkflows([]);
+  // ---------- 加载工作流列表（从数据库） ----------
+  const loadWorkflows = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/workflows');
+      const result = await res.json();
+      if (result.success) {
+        setWorkflows(result.data || []);
+      } else {
+        message.error(result.error || '加载工作流列表失败');
       }
+    } catch (error) {
+      console.error('加载工作流失败:', error);
+      message.error('加载工作流列表失败');
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  const handleDelete = (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = workflows.filter((item) => item.id !== id);
-    setWorkflows(updated);
-    localStorage.setItem('workflows', JSON.stringify(updated));
-    message.success('已删除');
   };
 
+  useEffect(() => {
+    loadWorkflows();
+  }, []);
+
+  // ---------- 删除工作流 ----------
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
+      const result = await res.json();
+      if (result.success) {
+        message.success('已删除');
+        setWorkflows(prev => prev.filter(w => w.id !== id));
+      } else {
+        message.error(result.error || '删除失败');
+      }
+    } catch (error) {
+      console.error('删除失败:', error);
+      message.error('删除失败，请重试');
+    }
+  };
+
+  // ---------- 运行工作流 ----------
   const handleRun = (id: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     router.push(`/workspace/generate?workflowId=${id}`);
   };
 
+  // ---------- 新建工作流 ----------
   const handleCreateNew = () => {
     router.push('/workspace/generate');
   };
 
-  // 获取提示词显示文本
+  // ---------- 获取提示词显示文本 ----------
   const getPromptText = (item: Workflow) => {
     if (item.prompts && item.prompts.length > 0) {
       const nonEmpty = item.prompts.filter(p => p.trim());
@@ -68,6 +89,15 @@ export default function WorkflowPage() {
     }
     return item.prompt || '（未填写）';
   };
+
+  // ---------- 加载状态 ----------
+  if (loading) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center' }}>
+        <div>加载中...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px' }}>
@@ -86,6 +116,7 @@ export default function WorkflowPage() {
       </div>
 
       <Row gutter={[16, 16]}>
+        {/* 新建工作流卡片 */}
         <Col xs={24} sm={12} md={8} lg={6}>
           <Card
             hoverable
@@ -114,6 +145,7 @@ export default function WorkflowPage() {
           </Card>
         </Col>
 
+        {/* 工作流卡片列表 */}
         {workflows.map((item) => (
           <Col key={item.id} xs={24} sm={12} md={8} lg={6}>
             <Card
@@ -194,9 +226,10 @@ export default function WorkflowPage() {
 
       {workflows.length === 0 && (
         <div style={{ textAlign: 'center', marginTop: 48 }}>
-          <Empty description="暂无工作流，点击左上角 + 号创建一个吧" />
+          <Empty description="暂无工作流，点击 + 号创建一个吧" />
         </div>
       )}
     </div>
   );
 }
+

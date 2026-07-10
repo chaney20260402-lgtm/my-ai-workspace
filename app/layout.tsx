@@ -19,8 +19,9 @@ import {
   CreditCardOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';
-// ✅ 新增：导入 LobeHub 图标
 import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
+import { WorkflowProvider, useWorkflow } from '@/app/contexts/WorkflowContext';
+import { Modal } from 'antd';
 
 const { Text } = Typography;
 const ADMIN_PHONE = '13929767725';
@@ -37,8 +38,8 @@ const baseMenuItems = [
     icon: <AppstoreOutlined />,
   },
   { 
-    path: '/workspace/workflow',  // ✅ 改为复数
-    name: '图片工作流',            // ✅ 改名
+    path: '/workspace/generate',  // 改为 generate
+    name: '图片工作流',
     icon: <FileOutlined />,
   },
   { 
@@ -124,6 +125,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
+  // 从 WorkflowContext 获取状态
+  const { hasUnsavedChanges, setHasUnsavedChanges, saveWorkflow, navigateAfterSave } = useWorkflow();
+
   // ✅ 动态菜单
   const menuItems = React.useMemo(() => {
     const isAdmin = session?.user?.phone === ADMIN_PHONE;
@@ -152,7 +156,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     </Menu>
   );
 
-  // ✅ 新增：广告内容（使用 LobeHub 图标）
+  // ✅ 广告内容（使用 LobeHub 图标）
   const adContent = (
     <div style={{
       display: 'flex',
@@ -212,7 +216,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  // ✅ 新增：自定义顶部栏
+  // ✅ 自定义顶部栏
   const customHeaderRender = () => (
     <div
       style={{
@@ -263,30 +267,56 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // ✅ 修改：使用 headerRender 替代 actionsRender
+  // ✅ 用 WorkflowProvider 包裹 ProLayout
   return (
-    <ProLayout
-      title="Aguala"
-      logo={false}
-      layout="mix"
-      fixedHeader={true}
-      navTheme="light"
-      colorPrimary="#101011"
-      location={{ pathname }}
-      route={{ routes: menuItems }}
-      menuItemRender={(item, dom) => {
-        if (!item.path) return dom;
-        return (
-          <div onClick={() => router.push(item.path as string)} style={{ cursor: 'pointer' }}>
-            {dom}
-          </div>
-        );
-      }}
-      headerRender={customHeaderRender}   // ✅ 使用自定义头部
-      // ❌ actionsRender 已移除（已集成到 headerRender 中）
-    >
-      {children}
-    </ProLayout>
+    <WorkflowProvider>
+      <ProLayout
+        title="Aguala"
+        logo={false}
+        layout="mix"
+        fixedHeader={true}
+        navTheme="light"
+        colorPrimary="#101011"
+        location={{ pathname }}
+        route={{ routes: menuItems }}
+        menuItemRender={(item, dom) => {
+          if (!item.path) return dom;
+
+          const handleClick = () => {
+            if (pathname === '/workspace/generate' && hasUnsavedChanges) {
+              Modal.confirm({
+                title: '提示',
+                content: '您有未保存的工作流，是否保存后再离开？',
+                okText: '保存并离开',
+                cancelText: '不保存直接离开',
+                onOk: async () => {
+  if (saveWorkflow) {
+    await saveWorkflow();
+  }
+  if (navigateAfterSave) {
+    navigateAfterSave();
+  } else {
+    router.push(item.path as string);
+  }
+  setHasUnsavedChanges(false);
+},
+              });
+            } else {
+              router.push(item.path as string);
+            }
+          };
+
+          return (
+            <div onClick={handleClick} style={{ cursor: 'pointer' }}>
+              {dom}
+            </div>
+          );
+        }}
+        headerRender={customHeaderRender}
+      >
+        {children}
+      </ProLayout>
+    </WorkflowProvider>
   );
 }
 
@@ -297,9 +327,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SessionProvider>
           <CreditsProvider>
-            <AntdApp>
-              <LayoutContent>{children}</LayoutContent>
-            </AntdApp>
+            <WorkflowProvider>        {/* ✅ 放在这里 */}
+              <AntdApp>
+                <LayoutContent>{children}</LayoutContent>
+              </AntdApp>
+            </WorkflowProvider>
           </CreditsProvider>
         </SessionProvider>
       </body>
