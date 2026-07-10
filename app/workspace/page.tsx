@@ -1019,8 +1019,6 @@ const adContent = (
   margin: '0 auto',
 }}>
 
-
-  
   <PremiumCube />
           </div>
         </div>

@@ -1,0 +1,42 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id         String     @id @default(cuid())
+  phone      String     @unique
+  credits    Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  usageLogs  UsageLog[]
+
+  // 如果有其他字段，保留它们
+  // name     String?
+  // email    String?
+}
+
+model UsageLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  userPhone   String   @map("user_phone")
+  model       String
+  mode        String
+  creditsUsed Int      @map("credits_used")
+  prompt      String?
+  success     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userPhone])
+  @@map("usage_logs")
+}

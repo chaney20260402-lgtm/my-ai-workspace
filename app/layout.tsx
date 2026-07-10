@@ -12,15 +12,50 @@ import NotificationDropdown from '@/app/workspace/components/NotificationDropdow
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
 import { CreditsProvider, useCredits } from '@/app/contexts/CreditsContext';
 import { App as AntdApp } from 'antd';
+import {
+  HomeOutlined,
+  AppstoreOutlined,
+  FileOutlined,
+  CreditCardOutlined,
+  BarChartOutlined,
+} from '@ant-design/icons';
 
 const { Text } = Typography;
+const ADMIN_PHONE = '13929767725'; // 🔥 改成你的手机号
 
-const menuItems = [
-  { path: '/workspace', name: '首页' },
-  { path: '/workspace/assets', name: '模型供应商' },
-  { path: '/workspace/workflow', name: '图片工作流' },
-  { path: '/workspace/pricing', name: '会员与积分' },
-  { path: '/workspace/profile', name: '个人中心' },
+const baseMenuItems = [
+  { 
+    path: '/workspace', 
+    name: '首页',
+    icon: <HomeOutlined />,  // ✅ 添加图标
+  },
+  { 
+    path: '/workspace/assets', 
+    name: '模型供应商',
+    icon: <AppstoreOutlined />,
+  },
+  { 
+    path: '/workspace/workflows', 
+    name: '工作流管理',
+    icon: <FileOutlined />,
+  },
+  { 
+    path: '/workspace/pricing', 
+    name: '会员与积分',
+    icon: <CreditCardOutlined />,
+  },
+  { 
+    path: '/workspace/profile', 
+    name: '个人中心',
+    icon: <UserOutlined />,
+  },
+];
+const adminMenuItems = [
+  { 
+    path: '/workspace/usage', 
+    name: '使用统计',
+    icon: <BarChartOutlined />,
+  },
 ];
 
 // ---------- 积分显示组件 ----------
@@ -85,8 +120,16 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  useEffect(() => {
+  const menuItems = React.useMemo(() => {
+    const isAdmin = session?.user?.phone === ADMIN_PHONE;
+    const items = [...baseMenuItems];
+    if (isAdmin) {
+      items.push(...adminMenuItems);
+    }
+    return items;
+  }, [session?.user?.phone]);
+  
+    useEffect(() => {
     const saved = localStorage.getItem('userAvatar');
     setAvatarUrl(saved);
   }, []);

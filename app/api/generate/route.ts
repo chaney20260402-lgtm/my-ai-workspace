@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { checkAndDeductCredits } from '@/lib/credits';
+import { createUsageLog } from '@/lib/usageLog';
 
 export const maxDuration = 60;
 
@@ -490,6 +491,16 @@ export async function POST(request: Request) {
     } else {
       try {
         newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);
+        // ✅ 生产模式：扣积分成功后记录日志
+    await createUsageLog({
+      userPhone: userPhone,
+      model: model,
+      mode: 'generate',
+      creditsUsed: totalCost,
+      prompt: enhancedPrompt,
+      success: true,
+    });
+        
       } catch (error: any) {
         console.error('❌ 积分扣除失败:', error.message);
         // 虽然图片生成了，但积分扣失败，返回错误（但已生成的图片无法撤回，需要记录）
