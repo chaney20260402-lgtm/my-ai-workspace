@@ -19,15 +19,17 @@ import {
   CreditCardOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';
+// ✅ 新增：导入 LobeHub 图标
+import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 
 const { Text } = Typography;
-const ADMIN_PHONE = '13929767725'; // 🔥 改成你的手机号
+const ADMIN_PHONE = '13929767725';
 
 const baseMenuItems = [
   { 
     path: '/workspace', 
     name: '首页',
-    icon: <HomeOutlined />,  // ✅ 添加图标
+    icon: <HomeOutlined />,
   },
   { 
     path: '/workspace/assets', 
@@ -35,8 +37,8 @@ const baseMenuItems = [
     icon: <AppstoreOutlined />,
   },
   { 
-    path: '/workspace/workflows', 
-    name: '工作流管理',
+    path: '/workspace/workflow',  // ✅ 改为复数
+    name: '图片工作流',            // ✅ 改名
     icon: <FileOutlined />,
   },
   { 
@@ -50,6 +52,7 @@ const baseMenuItems = [
     icon: <UserOutlined />,
   },
 ];
+
 const adminMenuItems = [
   { 
     path: '/workspace/usage', 
@@ -120,6 +123,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  // ✅ 动态菜单
   const menuItems = React.useMemo(() => {
     const isAdmin = session?.user?.phone === ADMIN_PHONE;
     const items = [...baseMenuItems];
@@ -128,8 +133,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     }
     return items;
   }, [session?.user?.phone]);
-  
-    useEffect(() => {
+
+  useEffect(() => {
     const saved = localStorage.getItem('userAvatar');
     setAvatarUrl(saved);
   }, []);
@@ -147,6 +152,107 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     </Menu>
   );
 
+  // ✅ 新增：广告内容（使用 LobeHub 图标）
+  const adContent = (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px 18px',
+      flexWrap: 'wrap',
+      padding: '0 16px',
+    }}>
+      {[
+        { name: 'OpenAI', icon: OpenAI, color: '#10a37f' },
+        { name: 'Claude', icon: Claude, color: '#d97706' },
+        { name: 'Gemini', icon: Gemini, color: '#4285f4' },
+        { name: 'Grok', icon: null, color: '#ff6b35' },
+        { name: 'DeepSeek', icon: DeepSeek, color: '#4f46e5' },
+        { name: 'Qwen', icon: Qwen, color: '#ff6b00' },
+      ].map((model) => {
+        const IconComponent = model.icon;
+        return (
+          <div
+            key={model.name}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(0, 0, 0, 0.04)',
+              padding: '1px 12px 1px 6px',
+              borderRadius: 20,
+              whiteSpace: 'nowrap',
+              cursor: 'default',
+            }}
+          >
+            {IconComponent ? (
+              <IconComponent size={18} color={model.color} />
+            ) : (
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: model.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}
+              >
+                {model.name[0]}
+              </div>
+            )}
+            <span style={{ fontSize: 12, fontWeight: 500 }}>{model.name}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // ✅ 新增：自定义顶部栏
+  const customHeaderRender = () => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        height: '100%',
+        padding: '0 16px',
+        backgroundColor: '#fff',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        zIndex: 1000,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ fontSize: 18, fontWeight: 600, whiteSpace: 'nowrap' }}>Aguala</span>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        {adContent}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+        <NotificationDropdown />
+        <CreditDisplay />
+        <Dropdown overlay={userMenu} placement="bottomRight">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <Avatar
+              src={avatarUrl || undefined}
+              icon={!avatarUrl ? <UserOutlined /> : undefined}
+            />
+            <span style={{ color: '#333', fontSize: 14, fontWeight: 500 }}>
+              {session?.user?.phone || '用户'}
+            </span>
+          </div>
+        </Dropdown>
+      </div>
+    </div>
+  );
+
   if (status === 'loading') {
     return <div style={{ padding: 50, textAlign: 'center' }}>加载中...</div>;
   }
@@ -157,7 +263,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // 恢复为原始的 ProLayout 配置（不带广告）
+  // ✅ 修改：使用 headerRender 替代 actionsRender
   return (
     <ProLayout
       title="Aguala"
@@ -176,31 +282,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         );
       }}
-      actionsRender={() => [
-        <Space 
-          key="user" 
-          size="middle" 
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center',
-            background: 'transparent !important',
-            boxShadow: 'none !important',
-            padding: 0,
-            borderRadius: 0,
-          }}
-          className="no-hover"
-        >
-          <NotificationDropdown />
-          <CreditDisplay />
-          <Dropdown overlay={userMenu} placement="bottomRight">
-            <Avatar
-              src={avatarUrl || undefined}
-              icon={!avatarUrl ? <UserOutlined /> : undefined}
-              style={{ cursor: 'pointer' }}
-            />
-          </Dropdown>
-        </Space>,
-      ]}
+      headerRender={customHeaderRender}   // ✅ 使用自定义头部
+      // ❌ actionsRender 已移除（已集成到 headerRender 中）
     >
       {children}
     </ProLayout>
@@ -214,8 +297,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SessionProvider>
           <CreditsProvider>
-            <AntdApp> 
-            <LayoutContent>{children}</LayoutContent>
+            <AntdApp>
+              <LayoutContent>{children}</LayoutContent>
             </AntdApp>
           </CreditsProvider>
         </SessionProvider>
