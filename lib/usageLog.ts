@@ -11,15 +11,22 @@ interface CreateUsageLogParams {
 
 export async function createUsageLog(params: CreateUsageLogParams) {
   try {
-    // 通过 userPhone 查找用户
-    const user = await prisma.user.findUnique({
+    // 查找用户，如果不存在则创建
+    let user = await prisma.user.findUnique({
       where: { phone: params.userPhone },
-      select: { id: true },
     });
+
     if (!user) {
-      console.error('用户不存在，无法记录日志:', params.userPhone);
-      return;
+      // ✅ 自动创建用户
+      user = await prisma.user.create({
+        data: {
+          phone: params.userPhone,
+          credits: 0, // 初始积分为0，登录后会从 localStorage 或其他逻辑获取
+        },
+      });
+      console.log('✅ 自动创建用户:', user.phone);
     }
+
     return await prisma.usageLog.create({
       data: {
         userId: user.id,
@@ -32,6 +39,6 @@ export async function createUsageLog(params: CreateUsageLogParams) {
       },
     });
   } catch (error) {
-    console.error('记录使用日志失败:', error);
+    console.error('❌ 记录使用日志失败:', error);
   }
 }

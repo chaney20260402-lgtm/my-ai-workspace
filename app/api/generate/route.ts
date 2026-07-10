@@ -488,6 +488,15 @@ export async function POST(request: Request) {
     if (isDev) {
       console.log(`⚠️ 开发模式：跳过实际积分扣除，假装消耗 ${totalCost} 积分`);
       newCredits = 100 - totalCost;
+      // ✅ 开发模式也记录日志
+  await createUsageLog({
+    userPhone: userPhone,
+    model: model,
+    mode: 'generate',
+    creditsUsed: totalCost,
+    prompt: enhancedPrompt,
+    success: true,
+  });
     } else {
       try {
         newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);

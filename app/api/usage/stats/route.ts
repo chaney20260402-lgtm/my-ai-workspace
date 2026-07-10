@@ -3,10 +3,15 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-const ADMIN_PHONE = '你的手机号'; // 🔥 替换成你的手机号
+const ADMIN_PHONE = '13929767725'; // 🔥 替换成你的手机号
 
 export async function GET() {
   const session = await getServerSession(authOptions);
+  // ✅ 添加调试日志
+  console.log('📝 统计API - session.user:', session?.user);
+  console.log('📝 统计API - phone:', session?.user?.phone);
+  console.log('📝 统计API - ADMIN_PHONE:', ADMIN_PHONE);
+  console.log('📝 统计API - 是否匹配:', session?.user?.phone === ADMIN_PHONE);
   
   // ✅ 只有管理员能访问
   if (session?.user?.phone !== ADMIN_PHONE) {
