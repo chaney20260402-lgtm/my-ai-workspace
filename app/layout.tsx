@@ -38,7 +38,7 @@ const baseMenuItems = [
     icon: <AppstoreOutlined />,
   },
   { 
-    path: '/workspace/generate',  // 改为 generate
+    path: '/workspace/workflows',  // 改为 generate
     name: '图片工作流',
     icon: <FileOutlined />,
   },
