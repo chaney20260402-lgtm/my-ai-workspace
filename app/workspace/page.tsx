@@ -11,6 +11,7 @@ import {
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import PremiumCube from './components/PremiumCube';
+const [inviteCode, setInviteCode] = useState('');
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -446,6 +447,7 @@ export default function Workspace() {
       const result = await signIn('credentials', {
         phone,
         code,
+        inviteCode,  // ✅ 新增：传递邀请码
         redirect: false,
       });
       console.log('登录结果:', result);
@@ -518,6 +520,15 @@ export default function Workspace() {
               {countdown > 0 ? `${countdown}s` : '发送验证码'}
             </Button>
           </div>
+          {/* ✅ 新增：邀请码输入框（选填） */}
+        <div style={{ marginTop: 8 }}>
+          <Input
+            placeholder="邀请码（选填）"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            size="large"
+          />
+        </div>
           <div style={{ marginTop: 16 }}>
             <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>
               同意 <a href="#">用户服务协议</a>、<a href="#">隐私政策</a>

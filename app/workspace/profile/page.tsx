@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Divider, Space, Avatar, Button, Row, Col, message, Tag, Table } from 'antd';
+import { Card, Typography, Divider, Space, Avatar, Button, Row, Col, message, Tag, Table, Spin } from 'antd';
 import { UserOutlined, CheckOutlined, LeftOutlined } from '@ant-design/icons';
 import { useSession } from 'next-auth/react';
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
@@ -14,7 +14,12 @@ export default function ProfilePage() {
   const [records, setRecords] = useState<CreditRecord[]>([]);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(null);
   const [selectedSeed, setSelectedSeed] = useState<string | null>(null);
+  
+  // ✅ 新增：用户信息（从 API 获取）
+  const [userInfo, setUserInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
+  // 加载积分记录（原有逻辑）
   useEffect(() => {
     setRecords(getCreditRecords());
     const saved = getUserAvatar();
@@ -25,6 +30,26 @@ export default function ProfilePage() {
     }
   }, []);
 
+  // ✅ 新增：从 API 获取用户信息（包含 membershipType、inviteRewards）
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const res = await fetch('/api/user/profile');
+        const result = await res.json();
+        if (result.success) {
+          setUserInfo(result.data);
+        } else {
+          console.error('获取用户信息失败:', result.error);
+        }
+      } catch (error) {
+        console.error('加载用户信息失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUserInfo();
+  }, []);
+
   const handleSelectAvatar = (seed: string) => {
     const url = getAvatarBySeed(seed);
     setUserAvatar(seed);
@@ -32,6 +57,15 @@ export default function ProfilePage() {
     setSelectedSeed(seed);
     message.success('头像已更换');
   };
+
+  // ✅ 会员标签配置
+  const membershipType = userInfo?.membershipType || 'experience';
+  const membershipConfig = {
+    experience: { label: '体验会员', color: '#999', bgColor: '#f5f5f5' },
+    advanced: { label: '进阶会员', color: '#1890ff', bgColor: '#e6f7ff' },
+    professional: { label: '专业会员', color: '#faad14', bgColor: '#fff7e6' },
+  };
+  const config = membershipConfig[membershipType as keyof typeof membershipConfig] || membershipConfig.experience;
 
   const columns = [
     {
@@ -75,6 +109,15 @@ export default function ProfilePage() {
     },
   ];
 
+  // 如果正在加载用户信息，显示加载状态
+  if (loading) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '24px' }}>
       {/* 返回按钮 + 标题行 */}
@@ -91,7 +134,7 @@ export default function ProfilePage() {
 
       <Card>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {/* 用户信息 + 当前头像 */}
+          {/* ===== 用户信息 + 当前头像 ===== */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <Avatar
               size={80}
@@ -99,8 +142,40 @@ export default function ProfilePage() {
               icon={!currentAvatar ? <UserOutlined /> : undefined}
             />
             <div>
-              <Title level={4}>{session?.user?.name || '用户'}</Title>
-              <Text type="secondary">{session?.user?.email || '未绑定邮箱'}</Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Title level={4} style={{ margin: 0 }}>
+                  {session?.user?.phone || session?.user?.name || '用户'}
+                </Title>
+                {/* ✅ 新增：会员标签 */}
+                <Tag
+                  color={config.color}
+                  style={{
+                    border: `1px solid ${config.color}`,
+                    color: config.color,
+                    backgroundColor: config.bgColor,
+                    borderRadius: 12,
+                    padding: '0 12px',
+                    fontWeight: 500,
+                  }}
+                >
+                  {config.label}
+                </Tag>
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <Text type="secondary">积分：{userInfo?.credits ?? 0}</Text>
+                {userInfo?.inviteRewards > 0 && (
+                  <Text type="secondary" style={{ marginLeft: 16 }}>
+                    🌟 邀请奖励：{userInfo.inviteRewards} 积分
+                  </Text>
+                )}
+              </div>
+              {userInfo?.myInviteCode && (
+                <div style={{ marginTop: 4 }}>
+                  <Text type="secondary">
+                    我的邀请码：<Text strong style={{ color: '#1677ff' }}>{userInfo.myInviteCode}</Text>
+                  </Text>
+                </div>
+              )}
             </div>
           </div>
           <Divider />
@@ -116,6 +191,7 @@ export default function ProfilePage() {
                   <Col key={seed}>
                     <div
                       style={{
+                        position: 'relative',
                         border: isSelected ? '3px solid #1677ff' : '2px solid #e8e8e8',
                         borderRadius: '50%',
                         padding: 4,

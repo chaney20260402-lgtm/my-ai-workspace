@@ -8,16 +8,52 @@ datasource db {
 }
 
 model User {
-  id         String     @id @default(cuid())
-  phone      String     @unique
-  credits    Int        @default(0)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id              String     @id @default(cuid())
+  phone           String     @unique
+  credits         Int        @default(0)
+  membershipType  String     @default("experience") // experience | advanced | professional
+  myInviteCode    String?    @unique                // 自己的邀请码
+  invitedBy       String?                           // 邀请人的手机号
+  inviteRewards   Int        @default(0)            // 累计邀请奖励积分
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
-  usageLogs  UsageLog[]
-  workflows  Workflow[]
+  usageLogs        UsageLog[]
+  workflows        Workflow[]
+  creditTransactions CreditTransaction[]
+  dailyClaims        DailyExperienceClaim[]
+}
+// ============================================================
+// 积分交易记录表
+// ============================================================
+model CreditTransaction {
+  id          String   @id @default(cuid())
+  userPhone   String
+  amount      Int      // 正数增加，负数减少
+  type        String   // 'recharge' | 'claim_experience' | 'invite_reward' | 'generate' | 'psd_export'
+  description String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userPhone], references: [phone], onDelete: Cascade)
+
+  @@index([userPhone])
+  @@index([createdAt])
 }
 
+// ============================================================
+// 每日体验包领取记录
+// ============================================================
+model DailyExperienceClaim {
+  id          String   @id @default(cuid())
+  userPhone   String
+  claimDate   DateTime @default(now())
+  day         Int      // 第几天 (1-5)
+
+  user        User     @relation(fields: [userPhone], references: [phone], onDelete: Cascade)
+
+  @@unique([userPhone, claimDate]) // 同一天同一用户只能领一次
+  @@index([userPhone])
+}
 model UsageLog {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")

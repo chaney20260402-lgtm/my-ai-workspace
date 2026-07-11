@@ -8,6 +8,8 @@ import { useCredits } from '@/app/contexts/CreditsContext';
 import LoadingProgressModal from './LoadingProgressModal';
 import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 import { StarOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-design/icons';
+import { Modal } from 'antd';
+import { useRouter } from 'next/navigation';
 
 const { TextArea } = Input;
 
@@ -16,6 +18,7 @@ interface ImageGeneratorProps {
   initialModel?: string;
   initialSize?: string;
   initialAspectRatio?: string;
+  membershipType?: string; // ✅ 新增
   initialImages?: GeneratedImage[];
   onGenerateSuccess?: (imageUrl: string) => void;
   onPromptChange?: (prompt: string) => void;
@@ -214,8 +217,11 @@ export default function ImageGenerator({
   onLanguageChange,
   onPromptsChange,
   onReferenceImagesChange,
+  membershipType = 'experience', // ✅ 新增
 }: ImageGeneratorProps) {
   const { setCredits } = useCredits();
+  const router = useRouter(); // ✅ 新增
+
 
   const [model, setModel] = useState(initialModel);
   const [size, setSize] = useState(initialSize);
@@ -543,6 +549,19 @@ useEffect(() => {
   };
 
   const handleExportPSD = async (imageUrl: string) => {
+    // 检查会员类型
+  if (membershipType === 'experience') {
+    Modal.warning({
+      title: '功能受限',
+      content: '导出PSD功能仅限进阶会员和专业会员使用，请升级会员',
+      okText: '去升级',
+      onOk: () => {
+        // 跳转到会员页面
+        router.push('/workspace/pricing');
+      },
+    });
+    return;
+  }
   setProgressTitle('正在导出PSD...');
   setProgressVisible(true);
 

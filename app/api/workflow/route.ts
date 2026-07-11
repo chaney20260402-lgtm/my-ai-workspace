@@ -38,6 +38,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '工作流名称不能为空' }, { status: 400 });
     }
 
+    // ============================================================
+    // ✅ 新增：工作流数量限制检查
+    // ============================================================
+    const existingCount = await prisma.workflow.count({
+      where: { userPhone: session.user.phone },
+    });
+
+    const membershipType = session.user.membershipType || 'experience';
+    const limits = {
+      experience: 1,
+      advanced: 3,
+      professional: Infinity,
+    };
+    const limit = limits[membershipType as keyof typeof limits] || 1;
+
+    if (existingCount >= limit) {
+      return NextResponse.json({
+        error: `您的会员类型最多只能保存 ${limit === Infinity ? '无限制' : limit} 个工作流，请升级会员`,
+      }, { status: 403 });
+    }
+
     const workflow = await prisma.workflow.create({
       data: {
         name,
