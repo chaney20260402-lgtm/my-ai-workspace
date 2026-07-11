@@ -86,7 +86,7 @@ const { hasUnsavedChanges, setHasUnsavedChanges, registerSaveWorkflow, registerN
 useEffect(() => {
   if (workflowId) {
     setLoading(true);
-    fetch(`/api/workflows/${workflowId}`)
+    fetch(`/api/workflow/${workflowId}`)
       .then(res => res.json())
       .then(result => {
         if (result.success) {
@@ -108,7 +108,7 @@ useEffect(() => {
       })
       .catch(() => {
         message.error('加载工作流失败');
-        router.push('/workspace/workflows');
+        router.push('/workspace/workflow');
       })
       .finally(() => setLoading(false));
   } else {
@@ -158,10 +158,10 @@ const handleSave = useCallback(async () => {
       generatedImages,
     };
 
-    let url = '/api/workflows';
+    let url = '/api/workflow';
     let method = 'POST';
     if (!isNew && workflowId) {
-      url = `/api/workflows/${workflowId}`;
+      url = `/api/workflow/${workflowId}`;
       method = 'PUT';
     }
 
@@ -194,7 +194,7 @@ const handleSave = useCallback(async () => {
   useEffect(() => {
     registerSaveWorkflow(handleSave);
     registerNavigateAfterSave(() => {
-      router.push('/workspace/workflows');
+      router.push('/workspace/workflow');
     });
     
     return () => {
@@ -233,7 +233,7 @@ const handleBack = () => {
 
   // 如果是新建且没有任何内容，直接跳转，不弹窗
   if (isNew && !hasContent) {
-    router.push('/workspace/workflows');
+    router.push('/workspace/workflow');
     return;
   }
 
@@ -246,15 +246,15 @@ const handleBack = () => {
       cancelText: '不保存直接离开',
       onOk: async () => {
         await handleSave();
-        router.push('/workspace/workflows');
+        router.push('/workspace/workflow');
       },
       onCancel: () => {
         setHasUnsavedChanges(false);
-        router.push('/workspace/workflows');
+        router.push('/workspace/workflow');
       },
     });
   } else {
-    router.push('/workspace/workflows');
+    router.push('/workspace/workflow');
   }
 };
 
@@ -262,7 +262,7 @@ const handleBack = () => {
   const toolMenu = (
     <Menu
       onClick={({ key }) => {
-        if (key === 'history') router.push('/workspace/workflows');
+        if (key === 'history') router.push('/workspace/workflow');
         else if (key === 'settings') message.info('设置功能开发中');
         else message.info(`${key} 功能开发中`);
       }}
@@ -313,9 +313,6 @@ const handleBack = () => {
             >
               保存工作流
             </Button>
-            <Dropdown overlay={toolMenu} trigger={['hover']} placement="bottomRight">
-              <Button icon={<ToolOutlined />}>菜单</Button>
-            </Dropdown>
           </Space>
         </div>
 
@@ -398,7 +395,7 @@ const handleBack = () => {
         open={nameModalVisible}
         onOk={handleNameConfirm}
         onCancel={() => {
-          router.push('/workspace/workflows');
+          router.push('/workspace/workflow');
         }}
         closable={false}
         maskClosable={false}

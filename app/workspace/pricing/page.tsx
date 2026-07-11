@@ -20,7 +20,7 @@ const membershipPlans = [
     icon: <StarOutlined style={{ fontSize: 24, color: '#faad14' }} />,
     credits: 100,
     features: [
-      '当月deals额度: 100',
+      '当月积分额度: 100',
       '同时调用数量: 5',
       '可使用模型数量: 1',
     ],

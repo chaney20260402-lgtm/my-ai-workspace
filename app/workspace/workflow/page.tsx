@@ -32,7 +32,7 @@ export default function WorkflowPage() {
   const loadWorkflows = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/workflows');
+      const res = await fetch('/api/workflow');
       const result = await res.json();
       if (result.success) {
         setWorkflows(result.data || []);
