@@ -600,7 +600,7 @@ useEffect(() => {
   return (
     <Card
       title={<span style={{ fontSize: 16, fontWeight: 600 }}>文字生图</span>}
-      bordered={false}
+      variant="borderless"
       style={{ 
         height: '100%',
         display: 'flex', 
