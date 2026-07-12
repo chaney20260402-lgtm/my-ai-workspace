@@ -217,7 +217,23 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   );
 
   // ✅ 自定义顶部栏
-  const customHeaderRender = () => (
+  const customHeaderRender = () => {
+    console.log('📝 session.user:', session?.user);
+    console.log('📝 membershipType:', session?.user?.membershipType);
+     const membershipType = session?.user?.membershipType || 'experience';
+  const membershipLabel = {
+    experience: '体验会员',
+    advanced: '进阶会员',
+    professional: '专业会员',
+  }[membershipType] || '体验会员';
+
+  const membershipColor = {
+    experience: '#000000',
+    advanced: '#1890ff',
+    professional: '#faad14',
+  }[membershipType] || '#ffffff';
+  // ✅ 添加 return
+  return (
     <div
       style={{
         display: 'flex',
@@ -226,13 +242,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         width: '100%',
         height: '100%',
         padding: '0 16px',
-        backgroundColor: '#fff',
+        backgroundColor: '#ffffff',
         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         zIndex: 1000,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 18, fontWeight: 600, whiteSpace: 'nowrap' }}>Aguala</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
+        <span style={{ fontSize: 26, fontWeight: 600, whiteSpace: 'nowrap' }}>Aguala</span>
       </div>
 
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
@@ -248,14 +264,29 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               src={avatarUrl || undefined}
               icon={!avatarUrl ? <UserOutlined /> : undefined}
             />
-            <span style={{ color: '#333', fontSize: 14, fontWeight: 500 }}>
+            <span style={{ color: '#381111', fontSize: 14, fontWeight: 500 }}>
               {session?.user?.phone || '用户'}
+            </span>
+            <span
+              style={{
+                color: membershipColor,
+                fontSize: 12,
+                fontWeight: 500,
+                marginLeft: 4,
+                padding: '0px 10px',
+                borderRadius: 12,
+                border: `1px solid ${membershipColor}`,
+                backgroundColor: `${membershipColor}50`,
+              }}
+            >
+              {membershipLabel}
             </span>
           </div>
         </Dropdown>
       </div>
     </div>
   );
+};
 
   if (status === 'loading') {
     return <div style={{ padding: 50, textAlign: 'center' }}>加载中...</div>;
