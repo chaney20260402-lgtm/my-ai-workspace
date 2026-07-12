@@ -20,9 +20,10 @@ const membershipPlans = [
     icon: <StarOutlined style={{ fontSize: 24, color: '#faad14' }} />,
     credits: 100,
     features: [
-      '当月积分额度: 100',
+      '当月积分额度: 20',
       '同时调用数量: 5',
       '可使用模型数量: 1',
+      '保存工作流数量: 1',
     ],
     color: '#f0f2f5',
     buttonColor: '#1890ff',
@@ -39,6 +40,7 @@ const membershipPlans = [
       '当月积分额度: 1500',
       '同时调用数量: 10',
       '可使用模型数量: 10',
+      '保存工作流数量: 3',
       '导出PSD功能分图层',
     ],
     color: '#e6f7ff',
@@ -56,6 +58,7 @@ const membershipPlans = [
       '当月积分额度: 7500',
       '同时调用数量: 15',
       '可使用模型数量: 12+',
+      '保存工作流数量: 3+',
       '导出PSD功能分图层',
       
     ],
