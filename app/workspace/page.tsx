@@ -11,7 +11,6 @@ import {
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import PremiumCube from './components/PremiumCube';
-const [inviteCode, setInviteCode] = useState('');
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -25,6 +24,7 @@ export default function Workspace() {
   // ---------- 登录相关状态 ----------
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(''); // ✅ 在这里添加
   const [smsLoading, setSmsLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('sms');

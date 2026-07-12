@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage, List, Tag, Space, Upload, InputNumber } from 'antd';
-import { DeleteOutlined, FilePdfOutlined, HistoryOutlined, PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage,Tag, Space } from 'antd';
+import { DeleteOutlined, FilePdfOutlined,  PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import JSZip from 'jszip';
 import { useCredits } from '@/app/contexts/CreditsContext';
 import LoadingProgressModal from './LoadingProgressModal';
