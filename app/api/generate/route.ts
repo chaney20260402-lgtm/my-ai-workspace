@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { checkAndDeductCredits } from '@/lib/credits';
+import { checkAndDeductCredits, checkUserCredits } from '@/lib/credits'; // ✅ 添加 checkUserCredits
 import { createUsageLog } from '@/lib/usageLog';
 
 export const maxDuration = 60;
@@ -93,7 +93,6 @@ const modelConfigs: Record<string, any> = {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const parts: any[] = [];
-      // ✅ 纯文本时添加“生成一张图片”指令，有参考图时直接用原提示词
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
         : `生成一张图片：${prompt}`;
@@ -257,7 +256,6 @@ const modelConfigs: Record<string, any> = {
   'gpt-image-2': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
-      // ✅ 纯文本时添加“生成一张图片”指令
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
         : `生成一张图片：${prompt}`;
@@ -268,7 +266,6 @@ const modelConfigs: Record<string, any> = {
         n: 1,
         size: baseSize,
         quality: 'medium',
-        // ❌ 移除 output_format
       };
     },
     extractImage: (data: any) => {
@@ -311,7 +308,6 @@ const modelConfigs: Record<string, any> = {
         n: 1,
         size: sizePresets[size] || '1024x1024',
         aspect_ratio: aspectRatio || '1:1',
-        // ❌ 移除 output_format
       };
     },
     extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
@@ -377,6 +373,7 @@ const modelConfigs: Record<string, any> = {
     extractImage: (data: any) => data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data?.[0]?.url || null,
   },
 };
+
 // ========== POST 处理 ==========
 export async function POST(request: Request) {
   try {
@@ -408,16 +405,30 @@ export async function POST(request: Request) {
     if (!config) {
       return NextResponse.json({ error: '不支持的模型' }, { status: 400 });
     }
+    // ✅ 积分检查（在调用 API 之前）
+    // ============================================================
+    const costPerImage = 8;
+    const totalCost = costPerImage * quantity;
 
+    const hasEnoughCredits = await checkUserCredits(userPhone, totalCost);
+    if (!hasEnoughCredits) {
+      return NextResponse.json(
+        { error: '积分不足，请充值后再生成' },
+        { status: 402 }
+      );
+    }
+
+    // 4. 构建增强提示词
+    const enhancedPrompt = buildEnhancedPrompt(prompt, platform, language);
+    console.log(`📝 增强后提示词: ${enhancedPrompt.substring(0, 150)}...`);
+
+    
     const APIYI_KEY = process.env.APIYI_KEY;
     if (!APIYI_KEY) {
       console.error('❌ APIYI_KEY 未设置');
       return NextResponse.json({ error: '服务器配置错误' }, { status: 500 });
     }
 
-    // 4. 构建增强提示词
-    const enhancedPrompt = buildEnhancedPrompt(prompt, platform, language);
-    console.log(`📝 增强后提示词: ${enhancedPrompt.substring(0, 150)}...`);
 
     // 5. 调用 API（先不扣积分）
     const payload = config.buildPayload(enhancedPrompt, size, aspectRatio, referenceImages);
@@ -430,9 +441,7 @@ export async function POST(request: Request) {
     let apiError: any = null;
 
     try {
-      // ✅ 新增：请求日志
-  console.log(`📤 调用模型: ${model}, 尺寸: ${size}, 比例: ${aspectRatio}`);
-  console.log(`📤 请求 Payload:`, JSON.stringify(payload, null, 2));
+      console.log(`📤 请求 Payload:`, JSON.stringify(payload, null, 2));
       const response = await fetch(config.endpoint, {
         method: 'POST',
         headers: {
@@ -451,9 +460,8 @@ export async function POST(request: Request) {
         apiError = new Error(`API 调用失败: ${response.status} - ${errorText}`);
       } else {
         const data = await response.json();
-        // ✅ 新增：响应日志
-    console.log(`📥 API 响应状态: ${response.status}`);
-    console.log(`📥 API 响应数据:`, JSON.stringify(data, null, 2));
+        console.log(`📥 API 响应状态: ${response.status}`);
+        console.log(`📥 API 响应数据:`, JSON.stringify(data, null, 2));
         imageUrl = config.extractImage(data);
         if (!imageUrl) {
           console.error('❌ 未提取到图片:', data);
@@ -479,54 +487,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // 7. API 成功，现在扣除积分
-    const costPerImage = 8;
-    const totalCost = costPerImage * quantity;
+    // ============================================================
     let newCredits: number;
 
-    const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) {
-      console.log(`⚠️ 开发模式：跳过实际积分扣除，假装消耗 ${totalCost} 积分`);
-      newCredits = 100 - totalCost;
-      // ✅ 开发模式也记录日志
-  await createUsageLog({
-    userPhone: userPhone,
-    model: model,
-    mode: 'generate',
-    creditsUsed: totalCost,
-    prompt: enhancedPrompt,
-    success: true,
-  });
-    } else {
-      try {
-        newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);
-        // ✅ 生产模式：扣积分成功后记录日志
-    await createUsageLog({
-      userPhone: userPhone,
-      model: model,
-      mode: 'generate',
-      creditsUsed: totalCost,
-      prompt: enhancedPrompt,
-      success: true,
-    });
-        
-      } catch (error: any) {
-        console.error('❌ 积分扣除失败:', error.message);
-        // 虽然图片生成了，但积分扣失败，返回错误（但已生成的图片无法撤回，需要记录）
-        return NextResponse.json(
-          { error: error.message || '积分扣除失败，请检查余额' },
-          { status: 402 }
-        );
-      }
+    try {
+      // 扣积分
+      newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);
+      
+      // 记录使用日志
+      await createUsageLog({
+        userPhone: userPhone,
+        model: model,
+        mode: 'generate',
+        creditsUsed: totalCost,
+        prompt: enhancedPrompt,
+        success: true,
+      });
+      
+    } catch (error: any) {
+      console.error('❌ 积分扣除失败:', error.message);
+      // 积分不足或扣费失败，返回 402 状态码
+      return NextResponse.json(
+        { error: error.message || '积分不足，请充值' },
+        { status: 402 }
+      );
     }
 
     console.log(`💰 当前剩余积分: ${newCredits}`);
-    // 此时 imageUrl 一定不为 null（因为 apiError 为 null，且 extractImage 已返回有效值）
     console.log(`✅ 生成成功，图片长度: ${imageUrl!.length}`);
 
     return NextResponse.json({
       success: true,
-      imageUrl: imageUrl!, // 非空断言，因为已确保成功
+      imageUrl: imageUrl!,
       credits: newCredits,
     });
   } catch (error: any) {

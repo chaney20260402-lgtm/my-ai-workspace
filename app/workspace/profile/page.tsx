@@ -6,16 +6,20 @@ import { UserOutlined, CheckOutlined, LeftOutlined } from '@ant-design/icons';
 import { useSession } from 'next-auth/react';
 import { getCreditRecords, CreditRecord } from '@/lib/creditRecords';
 import { getUserAvatar, setUserAvatar, getAvatarBySeed, avatarSeeds } from '@/lib/avatar';
+import { useCredits } from '@/app/contexts/CreditsContext';
 
 const { Title, Text } = Typography;
 
 export default function ProfilePage() {
   const { data: session } = useSession();
+  // ✅ 获取 credits 和 setCredits
+  const { credits, setCredits } = useCredits();
+  
   const [records, setRecords] = useState<CreditRecord[]>([]);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(null);
   const [selectedSeed, setSelectedSeed] = useState<string | null>(null);
   
-  // ✅ 新增：用户信息（从 API 获取）
+  // ✅ 用户信息（从 API 获取）
   const [userInfo, setUserInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +34,7 @@ export default function ProfilePage() {
     }
   }, []);
 
-  // ✅ 新增：从 API 获取用户信息（包含 membershipType、inviteRewards）
+  // ✅ 从 API 获取用户信息（包含 membershipType、inviteRewards）
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -38,6 +42,10 @@ export default function ProfilePage() {
         const result = await res.json();
         if (result.success) {
           setUserInfo(result.data);
+          // ✅ 同步积分到 Context（确保右上角和个人中心一致）
+          if (result.data.credits !== undefined) {
+            setCredits(result.data.credits);
+          }
         } else {
           console.error('获取用户信息失败:', result.error);
         }
@@ -146,7 +154,7 @@ export default function ProfilePage() {
                 <Title level={4} style={{ margin: 0 }}>
                   {session?.user?.phone || session?.user?.name || '用户'}
                 </Title>
-                {/* ✅ 新增：会员标签 */}
+                {/* ✅ 会员标签 */}
                 <Tag
                   color={config.color}
                   style={{
@@ -162,7 +170,8 @@ export default function ProfilePage() {
                 </Tag>
               </div>
               <div style={{ marginTop: 4 }}>
-                <Text type="secondary">积分：{userInfo?.credits ?? 0}</Text>
+                {/* ✅ 使用 credits（来自 Context），而不是 userInfo?.credits */}
+                <Text type="secondary">积分：{credits ?? 0}</Text>
                 {userInfo?.inviteRewards > 0 && (
                   <Text type="secondary" style={{ marginLeft: 16 }}>
                     🌟 邀请奖励：{userInfo.inviteRewards} 积分

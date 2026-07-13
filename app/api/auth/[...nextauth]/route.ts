@@ -5,7 +5,7 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getRedis } from '@/lib/redis';
 import bcrypt from 'bcrypt';
-import { prisma } from '@/lib/prisma'; // 确保顶部已导入 prisma
+import { prisma } from '@/lib/prisma';
 
 // ========== 扩展类型定义 ==========
 declare module "next-auth" {
@@ -13,7 +13,7 @@ declare module "next-auth" {
     user: {
       phone?: string;
       id?: string;
-      membershipType?: string; // ✅ 新增
+      membershipType?: string;
     } & DefaultSession["user"];
   }
   interface User {
@@ -27,6 +27,24 @@ declare module "next-auth/jwt" {
     id?: string;
   }
 }
+
+// ========== 辅助函数：生成6位邀请码 ==========
+const generateInviteCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
+const generateUniqueInviteCode = async (): Promise<string> => {
+  let code = generateInviteCode();
+  while (await prisma.user.findUnique({ where: { myInviteCode: code } })) {
+    code = generateInviteCode();
+  }
+  return code;
+};
 
 export const authOptions = {
   // ---------- 会话配置 ----------
@@ -55,84 +73,58 @@ export const authOptions = {
       credentials: {
         phone: { label: "手机号", type: "text" },
         code: { label: "验证码", type: "text" },
-        password: { label: "密码", type: "password" }, // ✅ 新增密码字段
-        inviteCode: { label: "邀请码", type: "text" }, // ✅ 新增邀请码字段（选填）
+        password: { label: "密码", type: "password" },
+        inviteCode: { label: "邀请码", type: "text" },
       },
       async authorize(credentials) {
-        // 参数校验
         if (!credentials?.phone) {
           return null;
         }
 
         const phone = credentials.phone.trim();
-        const inviteCode = credentials.inviteCode?.trim(); // 可能为 undefined
+        const inviteCode = credentials.inviteCode?.trim();
+
         // ============================================================
         // 1. 验证用户身份（手机号 + 验证码 或 密码）
         // ============================================================
         let isVerified = false;
-        let userData: any = null;
 
-        // ----- 分支一：密码登录（如果提供了 password 字段） -----
+        // ----- 分支一：密码登录 -----
         if (credentials.password) {
           const password = credentials.password.trim();
-          if (!password) {
-            throw new Error("请输入密码");
-          }
+          if (!password) throw new Error("请输入密码");
 
           const redis = getRedis();
-          const userData = await redis.get(`user:${phone}`);
-          if (!userData) {
-            throw new Error("用户不存在，请先注册");
-          }
+          const storedUser = await redis.get(`user:${phone}`);
+          if (!storedUser) throw new Error("用户不存在，请先注册");
 
-          const user = JSON.parse(userData);
-          // 使用顶部导入的 bcrypt
-          const isValid = await bcrypt.compare(password, user.password);
-          if (!isValid) {
-            throw new Error("密码错误，请重新输入");
-          }
-
-          return {
-            id: phone,
-            name: user.name || phone,
-            phone: phone,
-          };
+          const userData = JSON.parse(storedUser);
+          const isValid = await bcrypt.compare(password, userData.password);
+          if (!isValid) throw new Error("密码错误，请重新输入");
+          isVerified = true;
         }
 
-        // ----- 分支二：验证码登录（如果提供了 code 字段） -----
-        if (credentials.code) {
+        // ----- 分支二：验证码登录 -----
+        else if (credentials.code) {
           const code = credentials.code.trim();
 
           // 万能验证码（测试用）
           if (code === "000000") {
-            return {
-              id: phone,
-              name: phone,
-              phone: phone,
-            };
-          }
+            isVerified = true;
+          } else {
+            const redis = getRedis();
+            const key = `sms:${phone}`;
+            const storedCode = await redis.get(key);
+            console.log(`📥 从 Redis 读取: key=${key}, value=${storedCode}`);
 
-          const redis = getRedis();
-          const key = `sms:${phone}`;
-          const storedCode = await redis.get(key);
-          console.log(`📥 从 Redis 读取: key=${key}, value=${storedCode}`);
-
-          if (!storedCode) {
-            throw new Error("请先获取验证码");
+            if (!storedCode) throw new Error("请先获取验证码");
+            if (storedCode !== code) throw new Error("验证码错误，请重新输入");
+            await redis.del(key);
+            isVerified = true;
           }
-          if (storedCode !== code) {
-            console.log(`❌ 验证码不匹配: 输入=${code}, 存储=${storedCode}`);
-            throw new Error("验证码错误，请重新输入");
-          }
-          await redis.del(key);
-          isVerified = true;
-          return {
-            id: phone,
-            name: phone,
-            phone: phone,
-          };
         }
- if (!isVerified) {
+
+        if (!isVerified) {
           throw new Error("请提供验证码或密码进行登录");
         }
 
@@ -144,7 +136,7 @@ export const authOptions = {
         });
 
         if (!user) {
-          // ----- 处理邀请码（如果提供了）-----
+          // ----- 处理邀请码（新用户）-----
           let invitedBy: string | null = null;
           if (inviteCode) {
             const inviter = await prisma.user.findUnique({
@@ -155,20 +147,8 @@ export const authOptions = {
             }
           }
 
-          // ----- 生成自己的邀请码（6位字母数字）-----
-          const generateInviteCode = () => {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let code = '';
-            for (let i = 0; i < 6; i++) {
-              code += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return code;
-          };
-          let myCode = generateInviteCode();
-          // 确保唯一
-          while (await prisma.user.findUnique({ where: { myInviteCode: myCode } })) {
-            myCode = generateInviteCode();
-          }
+          // ----- 生成自己的邀请码 -----
+          const myCode = await generateUniqueInviteCode();
 
           // ----- 创建用户 -----
           user = await prisma.user.create({
@@ -180,6 +160,17 @@ export const authOptions = {
               invitedBy: invitedBy,
             },
           });
+          console.log(`✅ 新用户注册: ${phone}，邀请码: ${myCode}${invitedBy ? `，邀请人: ${invitedBy}` : ''}`);
+        } else {
+          // ✅ 老用户：如果没有邀请码，自动生成
+          if (!user.myInviteCode) {
+            const newCode = await generateUniqueInviteCode();
+            user = await prisma.user.update({
+              where: { phone },
+              data: { myInviteCode: newCode },
+            });
+            console.log(`✅ 为老用户 ${phone} 生成邀请码: ${newCode}`);
+          }
         }
 
         // ============================================================
@@ -207,13 +198,13 @@ export const authOptions = {
       return token;
     },
 
-     // ✅ Session 回调 - 添加 membershipType
+    // Session 回调 - 添加 membershipType
     async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
         session.user.phone = token.phone as string || undefined;
         session.user.id = token.id as string || undefined;
-        
-        // ✅ 从数据库获取 membershipType
+
+        // 从数据库获取 membershipType
         if (token.phone) {
           try {
             const dbUser = await prisma.user.findUnique({
