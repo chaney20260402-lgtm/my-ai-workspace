@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
     // 上传到 Vercel Blob
     const blob = await put(filename, blobData, {
-      access: 'private',
+      access: 'public',
     });
 
     console.log('✅ 上传成功:', blob.url);
