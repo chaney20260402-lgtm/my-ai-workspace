@@ -301,90 +301,99 @@ export default function VideoCanvas() {
   // 执行工作流（使用顶部工具栏的配置）
   // ============================================================
   const executeWorkflow = async () => {
-    const genNodes = nodes.filter(n => n.type === 'videoGen');
-    if (genNodes.length === 0) {
-      message.warning('画布上没有视频生成节点');
-      return;
-    }
+  const genNodes = nodes.filter(n => n.type === 'videoGen');
+  if (genNodes.length === 0) {
+    message.warning('画布上没有视频生成节点');
+    return;
+  }
 
-    const targetNode = genNodes.find(n => n.data.status !== 'completed');
-    if (!targetNode) {
-      message.info('所有视频生成任务已完成');
-      return;
-    }
+  const targetNode = genNodes.find(n => n.data.status !== 'completed');
+  if (!targetNode) {
+    message.info('所有视频生成任务已完成');
+    return;
+  }
 
-    const connectedEdges = edges.filter(e => e.target === targetNode.id);
-    let prompt = '';
-    let imageUrl = '';
+  const connectedEdges = edges.filter(e => e.target === targetNode.id);
+  let prompt = '';
+  let imageUrl = '';
 
-    for (const edge of connectedEdges) {
-      const sourceNode = nodes.find(n => n.id === edge.source);
-      if (sourceNode) {
-        if (sourceNode.type === 'textInput') {
-          prompt = sourceNode.data.prompt || '';
-        } else if (sourceNode.type === 'imageInput') {
-          imageUrl = sourceNode.data.imageUrl || '';
-        }
+  for (const edge of connectedEdges) {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    if (sourceNode) {
+      if (sourceNode.type === 'textInput') {
+        prompt = sourceNode.data.prompt || '';
+      } else if (sourceNode.type === 'imageInput') {
+        imageUrl = sourceNode.data.imageUrl || '';
       }
     }
+  }
 
-    if (!prompt) {
-      message.warning('请为视频生成节点连接一个文本输入节点并填写提示词');
-      return;
+  if (!prompt) {
+    message.warning('请为视频生成节点连接一个文本输入节点并填写提示词');
+    return;
+  }
+
+  // 验证模型和时长匹配
+  const modelObj = VIDEO_MODELS.find(m => m.value === selectedModel);
+  if (modelObj && !modelObj.durations.includes(selectedDuration)) {
+    message.warning(`模型 ${modelObj.label} 不支持 ${selectedDuration}秒，请调整参数`);
+    return;
+  }
+
+  // ============================================================
+  // ✅ 新增：Grok 模型图片检查
+  // ============================================================
+  const isGrok = selectedModel.startsWith('grok');
+  if (isGrok && !imageUrl) {
+    message.warning('Grok 模型需要提供参考图片，请添加并连接一个图片节点');
+    return;
+  }
+
+  setProcessing(true);
+  try {
+    const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
+
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
+      )
+    );
+
+    const res = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        imageUrl,
+        model: selectedModel,
+        duration: selectedDuration,
+        aspectRatio: selectedAspectRatio,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || '提交失败');
+    }
+    const generationId = data.generationId;
+    message.info(`任务已提交，ID: ${generationId}`);
+
+    if (isGrok) {
+      await pollGrokResult(generationId, targetNode.id, targetNode.position);
+    } else {
+      await pollVideoResult(generationId, targetNode.id, targetNode.position);
     }
 
-    const modelObj = VIDEO_MODELS.find(m => m.value === selectedModel);
-    if (modelObj && !modelObj.durations.includes(selectedDuration)) {
-      message.warning(`模型 ${modelObj.label} 不支持 ${selectedDuration}秒，请调整参数`);
-      return;
-    }
-
-    setProcessing(true);
-    try {
-      const isGrok = selectedModel.startsWith('grok');
-      const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
-
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
-        )
-      );
-
-      const res = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          imageUrl,
-          model: selectedModel,
-          duration: selectedDuration,
-          aspectRatio: selectedAspectRatio,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || '提交失败');
-      }
-      const generationId = data.generationId;
-      message.info(`任务已提交，ID: ${generationId}`);
-
-      if (isGrok) {
-        await pollGrokResult(generationId, targetNode.id, targetNode.position);
-      } else {
-        await pollVideoResult(generationId, targetNode.id, targetNode.position);
-      }
-
-    } catch (error: any) {
-      message.error(error.message || '生成失败');
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
-        )
-      );
-    } finally {
-      setProcessing(false);
-    }
-  };
+  } catch (error: any) {
+    message.error(error.message || '生成失败');
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
+      )
+    );
+  } finally {
+    setProcessing(false);
+  }
+};
 
   // ============================================================
   // pollVideoResult（API 易轮询）
