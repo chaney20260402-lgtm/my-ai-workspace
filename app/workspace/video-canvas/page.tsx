@@ -122,6 +122,11 @@ const ImageNode = ({ data }: { data: any }) => {
         <img src={data.imageUrl} alt="参考图" style={{ width: 80, height: 80, objectFit: 'cover', marginTop: 4, borderRadius: 4 }} />
       )}
       {!data.imageUrl && <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>上传图片</div>}
+      {data.prompt && (
+        <div style={{ fontSize: 12, color: '#666', marginTop: 4, wordBreak: 'break-all' }}>
+          📝 {data.prompt.substring(0, 30)}...
+        </div>
+      )}
     </div>
   );
 };
@@ -326,6 +331,7 @@ export default function VideoCanvas() {
   let prompt = '';
   let imageUrl = '';
 
+  // 获取连接的节点数据
   for (const edge of connectedEdges) {
     const sourceNode = nodes.find(n => n.id === edge.source);
     if (sourceNode) {
@@ -333,12 +339,28 @@ export default function VideoCanvas() {
         prompt = sourceNode.data.prompt || '';
       } else if (sourceNode.type === 'imageInput') {
         imageUrl = sourceNode.data.imageUrl || '';
+        // 如果没有文本节点连接，使用图片节点的描述
+        if (sourceNode.data.prompt && !prompt) {
+          prompt = sourceNode.data.prompt || '';
+        }
       }
     }
   }
 
+  const isGrok = selectedModel.startsWith('grok');
+
+  // Grok 特殊处理：如果只有图片没有文本，从图片节点获取描述
+  if (isGrok && imageUrl && !prompt) {
+    // 查找图片节点
+    const imageNode = nodes.find(n => n.type === 'imageInput' && n.data.imageUrl === imageUrl);
+    if (imageNode?.data.prompt) {
+      prompt = imageNode.data.prompt;
+      console.log('✅ 从图片节点获取描述:', prompt);
+    }
+  }
+
   if (!prompt) {
-    message.warning('请为视频生成节点连接一个文本输入节点并填写提示词');
+    message.warning('请为视频生成节点提供描述词（文本节点或图片节点的描述）');
     return;
   }
 
@@ -349,33 +371,20 @@ export default function VideoCanvas() {
     return;
   }
 
-  // ============================================================
-  // ✅ 调试日志
-  // ============================================================
-  console.log('🔍 ===== 工作流参数 =====');
-  console.log('🔍 prompt:', prompt);
-  console.log('🔍 imageUrl:', imageUrl);
-  console.log('🔍 imageUrl 类型:', typeof imageUrl);
-  console.log('🔍 是否以 https:// 开头:', imageUrl?.startsWith('https://'));
-  console.log('🔍 selectedModel:', selectedModel);
-  console.log('🔍 ========================');
+  console.log('🔍 工作流参数:');
+  console.log('  - prompt:', prompt);
+  console.log('  - imageUrl:', imageUrl);
+  console.log('  - selectedModel:', selectedModel);
 
-  // ============================================================
-  // ✅ Grok 模型图片检查
-  // ============================================================
-  const isGrok = selectedModel.startsWith('grok');
-
-  if (isGrok) {
-    if (!imageUrl) {
-      message.warning('Grok 模型需要提供参考图片，请添加并连接一个图片节点，然后上传图片');
-      return;
-    }
-    if (!imageUrl.startsWith('https://')) {
-      console.warn('⚠️ imageUrl 不是 HTTPS URL:', imageUrl);
-      message.warning('图片 URL 格式不正确，请重新上传图片（需要 https:// 开头的公开 URL）');
-      return;
-    }
-    console.log('✅ Grok 图片验证通过:', imageUrl);
+  // Grok 图片检查
+  if (isGrok && !imageUrl) {
+    message.warning('Grok 模型需要提供参考图片，请上传图片');
+    return;
+  }
+  if (isGrok && imageUrl && !imageUrl.startsWith('https://')) {
+    console.warn('⚠️ imageUrl 不是 HTTPS URL:', imageUrl);
+    message.warning('图片 URL 格式不正确，请重新上传图片');
+    return;
   }
 
   setProcessing(true);
@@ -731,20 +740,26 @@ export default function VideoCanvas() {
               </Form.Item>
             )}
             {selectedNode.type === 'imageInput' && (
-              <>
-                <Form.Item name="imageUrl" label="图片URL">
-                  <Input placeholder="输入图片URL" />
-                </Form.Item>
-                <Form.Item label="或上传图片">
-                  <Upload
-                    accept="image/*"
-                    beforeUpload={handleImageUpload}
-                    showUploadList={false}
-                  >
-                    <Button loading={uploading}>上传图片</Button>
-                  </Upload>
-                </Form.Item>
-              </>
+  <>
+    <Form.Item name="prompt" label="图片描述（用于视频生成）">
+      <Input.TextArea 
+        rows={3} 
+        placeholder="请输入这张图片的描述，如：一只猫在花园里奔跑，阳光明媚，高清" 
+      />
+    </Form.Item>
+    <Form.Item name="imageUrl" label="图片URL">
+      <Input placeholder="输入图片URL（或上传图片自动获取）" />
+    </Form.Item>
+    <Form.Item label="上传图片">
+      <Upload
+        accept="image/*"
+        beforeUpload={handleImageUpload}
+        showUploadList={false}
+      >
+        <Button loading={uploading}>上传图片</Button>
+      </Upload>
+    </Form.Item>
+  </>
             )}
             {selectedNode.type === 'videoGen' && (
               <>
