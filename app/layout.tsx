@@ -22,6 +22,7 @@ import {
 import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 import { WorkflowProvider, useWorkflow } from '@/app/contexts/WorkflowContext';
 import { Modal } from 'antd';
+import { VideoCameraOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 const ADMIN_PHONE = '13929767725';
@@ -51,6 +52,11 @@ const baseMenuItems = [
     path: '/workspace/profile', 
     name: '个人中心',
     icon: <UserOutlined />,
+  },
+  { 
+    path: '/workspace/video-canvas',   // ✅ 新增
+    name: 'AI视频画布',
+    icon: <VideoCameraOutlined />,
   },
 ];
 
