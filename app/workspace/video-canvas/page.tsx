@@ -272,35 +272,44 @@ export default function VideoCanvas() {
     message.success('已删除节点');
   };
 
-  const handleImageUpload = async (file: File) => {
-    setUploading(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
-        if (selectedNode) {
-          setNodes((nds) =>
-            nds.map((node) =>
-              node.id === selectedNode.id ? { ...node, data: { ...node.data, imageUrl: base64 } } : node
-            )
-          );
-          setDrawerOpen(false);
-          message.success('图片上传成功');
-        }
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      message.error('图片上传失败');
-      setUploading(false);
+ const handleImageUpload = async (file: File) => {
+  setUploading(true);
+  try {
+    // 上传到 Vercel Blob
+    const res = await fetch(`/api/upload?filename=${Date.now()}-${file.name}`, {
+      method: 'POST',
+      body: file,
+    });
+    const data = await res.json();
+
+    if (data.success && data.url) {
+      if (selectedNode) {
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === selectedNode.id
+              ? { ...node, data: { ...node.data, imageUrl: data.url } }
+              : node
+          )
+        );
+        message.success('图片上传成功！✅');
+        console.log('✅ 上传的图片 URL:', data.url);
+      }
+      setDrawerOpen(false);
+    } else {
+      message.error(data.error || '上传失败');
     }
-    return false;
-  };
+  } catch (error) {
+    console.error('上传失败:', error);
+    message.error('图片上传失败');
+  } finally {
+    setUploading(false);
+  }
+};
 
   // ============================================================
   // 执行工作流（使用顶部工具栏的配置）
   // ============================================================
-  const executeWorkflow = async () => {
+ const executeWorkflow = async () => {
   const genNodes = nodes.filter(n => n.type === 'videoGen');
   if (genNodes.length === 0) {
     message.warning('画布上没有视频生成节点');
@@ -341,12 +350,32 @@ export default function VideoCanvas() {
   }
 
   // ============================================================
-  // ✅ 新增：Grok 模型图片检查
+  // ✅ 调试日志
+  // ============================================================
+  console.log('🔍 ===== 工作流参数 =====');
+  console.log('🔍 prompt:', prompt);
+  console.log('🔍 imageUrl:', imageUrl);
+  console.log('🔍 imageUrl 类型:', typeof imageUrl);
+  console.log('🔍 是否以 https:// 开头:', imageUrl?.startsWith('https://'));
+  console.log('🔍 selectedModel:', selectedModel);
+  console.log('🔍 ========================');
+
+  // ============================================================
+  // ✅ Grok 模型图片检查
   // ============================================================
   const isGrok = selectedModel.startsWith('grok');
-  if (isGrok && !imageUrl) {
-    message.warning('Grok 模型需要提供参考图片，请添加并连接一个图片节点');
-    return;
+
+  if (isGrok) {
+    if (!imageUrl) {
+      message.warning('Grok 模型需要提供参考图片，请添加并连接一个图片节点，然后上传图片');
+      return;
+    }
+    if (!imageUrl.startsWith('https://')) {
+      console.warn('⚠️ imageUrl 不是 HTTPS URL:', imageUrl);
+      message.warning('图片 URL 格式不正确，请重新上传图片（需要 https:// 开头的公开 URL）');
+      return;
+    }
+    console.log('✅ Grok 图片验证通过:', imageUrl);
   }
 
   setProcessing(true);
@@ -371,6 +400,7 @@ export default function VideoCanvas() {
       }),
     });
     const data = await res.json();
+
     if (!data.success) {
       throw new Error(data.error || '提交失败');
     }
@@ -384,6 +414,7 @@ export default function VideoCanvas() {
     }
 
   } catch (error: any) {
+    console.error('❌ 执行工作流失败:', error);
     message.error(error.message || '生成失败');
     setNodes((nds) =>
       nds.map((node) =>
