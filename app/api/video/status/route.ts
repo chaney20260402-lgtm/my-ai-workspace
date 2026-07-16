@@ -29,8 +29,8 @@ export async function GET(request: Request) {
 
     const data = await response.json();
 
-    // 🔍 打印完整响应，确认字段名
-    console.log('📥 API 易原始响应:', JSON.stringify(data, null, 2));
+    // ✅ 打印完整响应，确认字段名
+    console.log('📥 API 易 Veo 完整响应:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       return NextResponse.json(
@@ -39,21 +39,26 @@ export async function GET(request: Request) {
       );
     }
 
-    // ✅ 按照 API 易文档的标准字段提取
-    // 客服说"彼时接口里输出的"，说明标准字段是 video_url
-    const status = data.status || 'processing';
-    const videoUrl = data.video_url || data.url || null;
-    const progress = data.progress || 0;
-    const error = data.error || null;
+    // ✅ 尝试多种可能的字段名
+    const status = data.status || data.state || 'processing';
+    
+    // 视频 URL 可能在不同字段中
+    const videoUrl = data.video_url || 
+                     data.url || 
+                     data.video?.url || 
+                     data.result?.url || 
+                     data.output?.url ||
+                     data.data?.video_url ||
+                     null;
 
-    console.log(`📊 状态: ${status}, 进度: ${progress}%, 视频URL: ${videoUrl || '暂无'}`);
+    const progress = data.progress || 0;
 
     return NextResponse.json({
       success: true,
       status: status,
       videoUrl: videoUrl,
       progress: progress,
-      error: error,
+      error: data.error,
     });
   } catch (error: any) {
     console.error('查询视频状态失败:', error);

@@ -23,12 +23,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '请输入描述词' }, { status: 400 });
     }
 
-    // ✅ 检查 Grok 模型是否需要图片
-    if (!imageUrl) {
+    // ============================================================
+    // ✅ 新增：检查 Grok Imagine 1.5 是否需要图片
+    // ============================================================
+    const isGrok15 = model === 'grok-imagine-video-1.5';
+
+    // 如果是 1.5 版本且没有图片，返回错误
+    if (isGrok15 && !imageUrl) {
       return NextResponse.json(
-        { error: 'Grok 视频生成需要提供参考图片，请连接一个图片参考节点' },
+        { 
+          error: 'Grok Imagine 1.5 需要提供参考图片，请上传图片并连接图片节点',
+          model: model,
+        },
         { status: 400 }
       );
+    }
+
+    // ✅ 通用图片检查（如果是其他 Grok 模型）
+    if (!isGrok15 && model.startsWith('grok') && !imageUrl) {
+      // 对于 grok-imagine-video 纯文本模型，允许没有图片
+      // 这里可以只加警告，不强制报错
+      console.log('⚠️ Grok 纯文本模式，无图片');
     }
 
     const userPhone = session.user.phone;
@@ -51,8 +66,11 @@ export async function POST(request: Request) {
     const payload: any = {
       model: model,
       prompt: prompt,
-      image_url: imageUrl,  // ✅ 添加图片 URL
     };
+    // 如果有图片，添加 image_url
+    if (imageUrl) {
+      payload.image_url = imageUrl;
+    }
     if (duration) payload.duration = duration;
     if (aspectRatio) payload.aspect_ratio = aspectRatio;
 
@@ -69,10 +87,22 @@ export async function POST(request: Request) {
 
     const data = await response.json();
 
+    console.log('📥 xAI 响应状态:', response.status);
+    console.log('📥 xAI 响应数据:', JSON.stringify(data, null, 2));
+
     if (!response.ok) {
-      console.error('❌ xAI API 错误:', data);
+      console.error('❌ xAI API 错误详情:', {
+        status: response.status,
+        data: data,
+        model: model,
+        imageUrl: imageUrl,
+      });
       return NextResponse.json(
-        { error: data.error?.message || 'Grok 视频生成任务提交失败' },
+        { 
+          error: data.error?.message || 'Grok 视频生成任务提交失败',
+          details: data,
+          model: model,
+        },
         { status: response.status }
       );
     }
