@@ -71,19 +71,22 @@ export async function POST(request: Request) {
       prompt: prompt,
     };
 
-    // ✅ 对于 1.5 版本，直接添加 image_url
-    if (isGrok15) {
-      payload.image_url = imageUrl;
-      console.log('🟣 1.5 版本，添加 image_url:', imageUrl);
-    } else {
-      // 对于普通版本，如果有图片才添加
-      if (imageUrl && imageUrl.trim() !== '') {
-        payload.image_url = imageUrl;
-        console.log('✅ 已添加 image_url 到 payload:', imageUrl);
-      } else {
-        console.log('⚠️ 没有 image_url，纯文本模式');
-      }
-    }
+    // ✅ 对于 1.5 版本，使用 image 结构（官方要求）
+if (isGrok15) {
+  // ✅ 关键修正：使用 image: { url: imageUrl }
+  payload.image = { url: imageUrl };
+  payload.resolution = "720p";  // 推荐添加
+  console.log('🟣 1.5 版本，添加 image:', payload.image);
+  console.log('🟣 1.5 版本，分辨率: 720p');
+} else {
+  // 对于普通版本，如果有图片才添加（保持原逻辑）
+  if (imageUrl && imageUrl.trim() !== '') {
+    payload.image = { url: imageUrl };
+    console.log('✅ 已添加 image 到 payload:', payload.image);
+  } else {
+    console.log('⚠️ 没有 image_url，纯文本模式');
+  }
+}
 
     if (duration) payload.duration = duration;
     if (aspectRatio) payload.aspect_ratio = aspectRatio;
