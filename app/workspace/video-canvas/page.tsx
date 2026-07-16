@@ -312,8 +312,8 @@ export default function VideoCanvas() {
 };
 
   // ============================================================
-  // 执行工作流（使用顶部工具栏的配置）
-  // ============================================================
+// 执行工作流（使用顶部工具栏的配置）
+// ============================================================
 const executeWorkflow = async () => {
   const genNodes = nodes.filter(n => n.type === 'videoGen');
   if (genNodes.length === 0) {
@@ -331,21 +331,45 @@ const executeWorkflow = async () => {
   let prompt = '';
   let imageUrl = '';
 
-  // 获取连接的节点数据
+  // ============================================================
+  // ✅ 获取连接的节点数据（带详细调试日志）
+  // ============================================================
+  console.log('🔍 ===== 开始获取节点数据 =====');
+  console.log('🔍 连接到目标节点的边数:', connectedEdges.length);
+  
   for (const edge of connectedEdges) {
+    console.log('🔍 边缘:', edge);
     const sourceNode = nodes.find(n => n.id === edge.source);
+    console.log('🔍 源节点:', sourceNode);
+    
     if (sourceNode) {
+      console.log('🔍 节点类型:', sourceNode.type);
+      console.log('🔍 节点数据:', sourceNode.data);
+      
       if (sourceNode.type === 'textInput') {
         prompt = sourceNode.data.prompt || '';
+        console.log('🔍 从文本节点获取 prompt:', prompt);
       } else if (sourceNode.type === 'imageInput') {
         imageUrl = sourceNode.data.imageUrl || '';
+        console.log('🔍 从图片节点获取 imageUrl:', imageUrl);
+        console.log('🔍 imageUrl 长度:', imageUrl.length);
+        console.log('🔍 是否以 https:// 开头:', imageUrl.startsWith('https://'));
+        console.log('🔍 是否包含 public.blob.vercel-storage.com:', imageUrl.includes('public.blob.vercel-storage.com'));
+        
         // 如果没有文本节点连接，使用图片节点的描述
         if (sourceNode.data.prompt && !prompt) {
           prompt = sourceNode.data.prompt || '';
+          console.log('🔍 从图片节点获取 prompt:', prompt);
         }
       }
     }
   }
+
+  console.log('🔍 ===== 最终获取到的数据 =====');
+  console.log('  - prompt:', prompt);
+  console.log('  - imageUrl:', imageUrl);
+  console.log('  - imageUrl 是否为空:', !imageUrl);
+  console.log('  - imageUrl 是否以 https:// 开头:', imageUrl?.startsWith('https://'));
 
   // ============================================================
   // ✅ 区分 Grok 模型类型
@@ -409,74 +433,74 @@ const executeWorkflow = async () => {
   console.log('  - selectedModel:', selectedModel);
 
   setProcessing(true);
-try {
-  const isGrok = selectedModel.startsWith('grok');
-  const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
+  try {
+    const isGrok = selectedModel.startsWith('grok');
+    const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
 
-  setNodes((nds) =>
-    nds.map((node) =>
-      node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
-    )
-  );
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
+      )
+    );
 
-  console.log('🔵 正在调用 API:', apiEndpoint);
-  console.log('🔵 请求体:', { prompt, imageUrl, model: selectedModel, duration: selectedDuration });
+    console.log('🔵 正在调用 API:', apiEndpoint);
+    console.log('🔵 请求体:', { prompt, imageUrl, model: selectedModel, duration: selectedDuration });
 
-  const res = await fetch(apiEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      imageUrl,
-      model: selectedModel,
-      duration: selectedDuration,
-      aspectRatio: selectedAspectRatio,
-    }),
-  });
+    const res = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        imageUrl,
+        model: selectedModel,
+        duration: selectedDuration,
+        aspectRatio: selectedAspectRatio,
+      }),
+    });
 
-  console.log('🔵 API 响应状态:', res.status);
+    console.log('🔵 API 响应状态:', res.status);
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error('❌ API 响应错误:', res.status, text);
-    let errorMsg = `请求失败 (${res.status})`;
-    try {
-      const errorData = JSON.parse(text);
-      errorMsg = errorData.error || errorData.message || errorMsg;
-    } catch {
-      if (text) errorMsg = text;
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('❌ API 响应错误:', res.status, text);
+      let errorMsg = `请求失败 (${res.status})`;
+      try {
+        const errorData = JSON.parse(text);
+        errorMsg = errorData.error || errorData.message || errorMsg;
+      } catch {
+        if (text) errorMsg = text;
+      }
+      throw new Error(errorMsg);
     }
-    throw new Error(errorMsg);
+
+    const data = await res.json();
+
+    if (!data.success) {
+      throw new Error(data.error || '提交失败');
+    }
+
+    console.log('✅ API 调用成功，generationId:', data.generationId);
+
+    const generationId = data.generationId;
+    message.info(`任务已提交，ID: ${generationId}`);
+
+    if (isGrok) {
+      await pollGrokResult(generationId, targetNode.id, targetNode.position);
+    } else {
+      await pollVideoResult(generationId, targetNode.id, targetNode.position);
+    }
+
+  } catch (error: any) {
+    console.error('❌ 执行工作流失败:', error);
+    message.error(error.message || '生成失败');
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
+      )
+    );
+  } finally {
+    setProcessing(false);
   }
-
-  const data = await res.json();
-
-  if (!data.success) {
-    throw new Error(data.error || '提交失败');
-  }
-
-  console.log('✅ API 调用成功，generationId:', data.generationId);
-
-  const generationId = data.generationId;
-  message.info(`任务已提交，ID: ${generationId}`);
-
-  if (isGrok) {
-    await pollGrokResult(generationId, targetNode.id, targetNode.position);
-  } else {
-    await pollVideoResult(generationId, targetNode.id, targetNode.position);
-  }
-
-} catch (error: any) {
-  console.error('❌ 执行工作流失败:', error);
-  message.error(error.message || '生成失败');
-  setNodes((nds) =>
-    nds.map((node) =>
-      node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
-    )
-  );
-} finally {
-  setProcessing(false);
-}
 };
 
   // ============================================================
