@@ -19,31 +19,34 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { prompt, imageUrl, model = 'grok-imagine-video', duration = 5, aspectRatio = '16:9' } = body;
 
+    // ============================================================
+    // ✅ 打印接收到的完整 body
+    // ============================================================
+    console.log('📥 Grok API 接收到完整 body:', JSON.stringify(body, null, 2));
+    console.log('📥 提取的 imageUrl:', imageUrl);
+    console.log('📥 imageUrl 类型:', typeof imageUrl);
+    console.log('📥 imageUrl 是否为空字符串:', imageUrl === '');
+    console.log('📥 imageUrl 是否为 undefined:', imageUrl === undefined);
+
     if (!prompt) {
       return NextResponse.json({ error: '请输入描述词' }, { status: 400 });
     }
 
-    // ============================================================
-    // ✅ 新增：检查 Grok Imagine 1.5 是否需要图片
-    // ============================================================
     const isGrok15 = model === 'grok-imagine-video-1.5';
 
-    // 如果是 1.5 版本且没有图片，返回错误
+    // ============================================================
+    // ✅ 1.5 版本强制需要图片
+    // ============================================================
     if (isGrok15 && !imageUrl) {
+      console.error('❌ 1.5 版本缺少图片');
       return NextResponse.json(
         { 
           error: 'Grok Imagine 1.5 需要提供参考图片，请上传图片并连接图片节点',
           model: model,
+          receivedImageUrl: imageUrl,
         },
         { status: 400 }
       );
-    }
-
-    // ✅ 通用图片检查（如果是其他 Grok 模型）
-    if (!isGrok15 && model.startsWith('grok') && !imageUrl) {
-      // 对于 grok-imagine-video 纯文本模型，允许没有图片
-      // 这里可以只加警告，不强制报错
-      console.log('⚠️ Grok 纯文本模式，无图片');
     }
 
     const userPhone = session.user.phone;
@@ -61,20 +64,25 @@ export async function POST(request: Request) {
     }
 
     // ============================================================
-    // ✅ 构建请求体 - 确保 image_url 被包含
+    // ✅ 构建请求体 - 确保 image_url 被包含（无论什么模型）
     // ============================================================
     const payload: any = {
       model: model,
       prompt: prompt,
     };
-    // 如果有图片，添加 image_url
-    if (imageUrl) {
+
+    // ✅ 如果有图片，添加 image_url（对所有模型都适用）
+    if (imageUrl && imageUrl.trim() !== '') {
       payload.image_url = imageUrl;
+      console.log('✅ 已添加 image_url 到 payload:', imageUrl);
+    } else {
+      console.log('⚠️ 没有 image_url，纯文本模式');
     }
+
     if (duration) payload.duration = duration;
     if (aspectRatio) payload.aspect_ratio = aspectRatio;
 
-    console.log('📤 Grok 请求 Payload:', JSON.stringify(payload, null, 2));
+    console.log('📤 Grok 最终 Payload:', JSON.stringify(payload, null, 2));
 
     const response = await fetch('https://api.x.ai/v1/videos/generations', {
       method: 'POST',
@@ -96,6 +104,7 @@ export async function POST(request: Request) {
         data: data,
         model: model,
         imageUrl: imageUrl,
+        payload: payload,
       });
       return NextResponse.json(
         { 
