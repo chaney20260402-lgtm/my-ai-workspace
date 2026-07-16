@@ -64,19 +64,25 @@ export async function POST(request: Request) {
     }
 
     // ============================================================
-    // ✅ 构建请求体 - 确保 image_url 被包含（无论什么模型）
+    // ✅ 构建请求体 - 根据模型类型决定是否需要 image_url
     // ============================================================
     const payload: any = {
       model: model,
       prompt: prompt,
     };
 
-    // ✅ 如果有图片，添加 image_url（对所有模型都适用）
-    if (imageUrl && imageUrl.trim() !== '') {
+    // ✅ 对于 1.5 版本，直接添加 image_url
+    if (isGrok15) {
       payload.image_url = imageUrl;
-      console.log('✅ 已添加 image_url 到 payload:', imageUrl);
+      console.log('🟣 1.5 版本，添加 image_url:', imageUrl);
     } else {
-      console.log('⚠️ 没有 image_url，纯文本模式');
+      // 对于普通版本，如果有图片才添加
+      if (imageUrl && imageUrl.trim() !== '') {
+        payload.image_url = imageUrl;
+        console.log('✅ 已添加 image_url 到 payload:', imageUrl);
+      } else {
+        console.log('⚠️ 没有 image_url，纯文本模式');
+      }
     }
 
     if (duration) payload.duration = duration;
