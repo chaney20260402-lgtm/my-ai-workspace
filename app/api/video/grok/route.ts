@@ -6,7 +6,7 @@ import { checkUserCredits, checkAndDeductCredits } from '@/lib/credits';
 
 const GROK_MODELS = {
   'grok-imagine-video': { label: 'Grok Imagine', costPerSecond: 0.08 },
-  'grok-imagine-video-1.5': { label: 'Grok Imagine 1.5', costPerSecond: 0.08 },
+  'grok-imagine-video-1.5': { label: 'Grok Imagine 1.5 Preview', costPerSecond: 0.08 },
 };
 
 export async function POST(request: Request) {

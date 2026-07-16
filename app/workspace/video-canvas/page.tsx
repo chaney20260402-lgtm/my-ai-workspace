@@ -62,7 +62,7 @@ const VIDEO_MODELS = [
     description: 'xAI 视频生成，支持长视频',
   },
   { 
-    value: 'grok-imagine-video-1.5', 
+    value: 'grok-imagine-video-1.5-preview', 
     label: 'Grok Imagine 1.5', 
     durations: [5, 8, 10, 15], 
     aspectRatios: ['16:9', '9:16', '1:1'],
