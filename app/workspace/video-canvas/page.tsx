@@ -314,7 +314,7 @@ export default function VideoCanvas() {
   // ============================================================
   // 执行工作流（使用顶部工具栏的配置）
   // ============================================================
- const executeWorkflow = async () => {
+const executeWorkflow = async () => {
   const genNodes = nodes.filter(n => n.type === 'videoGen');
   if (genNodes.length === 0) {
     message.warning('画布上没有视频生成节点');
@@ -347,11 +347,15 @@ export default function VideoCanvas() {
     }
   }
 
-  const isGrok = selectedModel.startsWith('grok');
+  // ============================================================
+  // ✅ 区分 Grok 模型类型
+  // ============================================================
+  const isGrokPureText = selectedModel === 'grok-imagine-video';      // 纯文本模型
+  const isGrokImage = selectedModel === 'grok-imagine-video-1.5';     // 图生视频模型
+  const isVeo = selectedModel.startsWith('veo');
 
   // Grok 特殊处理：如果只有图片没有文本，从图片节点获取描述
-  if (isGrok && imageUrl && !prompt) {
-    // 查找图片节点
+  if ((isGrokPureText || isGrokImage) && imageUrl && !prompt) {
     const imageNode = nodes.find(n => n.type === 'imageInput' && n.data.imageUrl === imageUrl);
     if (imageNode?.data.prompt) {
       prompt = imageNode.data.prompt;
@@ -359,16 +363,44 @@ export default function VideoCanvas() {
     }
   }
 
-  if (!prompt) {
-    message.warning('请为视频生成节点提供描述词（文本节点或图片节点的描述）');
-    return;
+  // ============================================================
+  // ✅ 根据模型类型检查必要条件
+  // ============================================================
+  if (isGrokPureText) {
+    // 纯文本模型：只要求有提示词
+    if (!prompt) {
+      message.warning('请填写提示词（文字节点或图片节点的描述）');
+      return;
+    }
+    console.log('🔵 Grok 纯文本模式，无需图片');
+    // 即使有图片也可以传到 API，但 Grok 纯文本模型会忽略图片
   }
 
-  // 验证模型和时长匹配
-  const modelObj = VIDEO_MODELS.find(m => m.value === selectedModel);
-  if (modelObj && !modelObj.durations.includes(selectedDuration)) {
-    message.warning(`模型 ${modelObj.label} 不支持 ${selectedDuration}秒，请调整参数`);
-    return;
+  if (isGrokImage) {
+    // 图生视频模型：必须要有提示词和图片
+    if (!prompt) {
+      message.warning('请填写提示词（文字节点或图片节点的描述）');
+      return;
+    }
+    if (!imageUrl) {
+      message.warning('Grok Imagine 1.5 需要提供参考图片，请连接图片节点');
+      return;
+    }
+    if (!imageUrl.startsWith('https://')) {
+      console.warn('⚠️ imageUrl 不是 HTTPS URL:', imageUrl);
+      message.warning('图片 URL 格式不正确，请重新上传图片');
+      return;
+    }
+    console.log('🟣 Grok 图生视频模式，图片已准备:', imageUrl);
+  }
+
+  if (isVeo) {
+    // Veo 模型：只要求有提示词
+    if (!prompt) {
+      message.warning('请填写提示词');
+      return;
+    }
+    console.log('🟢 Veo 模式，纯文本');
   }
 
   console.log('🔍 工作流参数:');
@@ -376,19 +408,10 @@ export default function VideoCanvas() {
   console.log('  - imageUrl:', imageUrl);
   console.log('  - selectedModel:', selectedModel);
 
-  // Grok 图片检查
-  if (isGrok && !imageUrl) {
-    message.warning('Grok 模型需要提供参考图片，请上传图片');
-    return;
-  }
-  if (isGrok && imageUrl && !imageUrl.startsWith('https://')) {
-    console.warn('⚠️ imageUrl 不是 HTTPS URL:', imageUrl);
-    message.warning('图片 URL 格式不正确，请重新上传图片');
-    return;
-  }
-
   setProcessing(true);
   try {
+    // 根据模型选择 API 端点
+    const isGrok = isGrokPureText || isGrokImage;
     const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
 
     setNodes((nds) =>
