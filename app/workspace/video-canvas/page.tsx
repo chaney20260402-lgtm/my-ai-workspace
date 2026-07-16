@@ -409,53 +409,74 @@ const executeWorkflow = async () => {
   console.log('  - selectedModel:', selectedModel);
 
   setProcessing(true);
-  try {
-    // 根据模型选择 API 端点
-    const isGrok = isGrokPureText || isGrokImage;
-    const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
+try {
+  const isGrok = selectedModel.startsWith('grok');
+  const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
 
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
-      )
-    );
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
+    )
+  );
 
-    const res = await fetch(apiEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt,
-        imageUrl,
-        model: selectedModel,
-        duration: selectedDuration,
-        aspectRatio: selectedAspectRatio,
-      }),
-    });
-    const data = await res.json();
+  console.log('🔵 正在调用 API:', apiEndpoint);
+  console.log('🔵 请求体:', { prompt, imageUrl, model: selectedModel, duration: selectedDuration });
 
-    if (!data.success) {
-      throw new Error(data.error || '提交失败');
+  const res = await fetch(apiEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt,
+      imageUrl,
+      model: selectedModel,
+      duration: selectedDuration,
+      aspectRatio: selectedAspectRatio,
+    }),
+  });
+
+  console.log('🔵 API 响应状态:', res.status);
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('❌ API 响应错误:', res.status, text);
+    let errorMsg = `请求失败 (${res.status})`;
+    try {
+      const errorData = JSON.parse(text);
+      errorMsg = errorData.error || errorData.message || errorMsg;
+    } catch {
+      if (text) errorMsg = text;
     }
-    const generationId = data.generationId;
-    message.info(`任务已提交，ID: ${generationId}`);
-
-    if (isGrok) {
-      await pollGrokResult(generationId, targetNode.id, targetNode.position);
-    } else {
-      await pollVideoResult(generationId, targetNode.id, targetNode.position);
-    }
-
-  } catch (error: any) {
-    console.error('❌ 执行工作流失败:', error);
-    message.error(error.message || '生成失败');
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
-      )
-    );
-  } finally {
-    setProcessing(false);
+    throw new Error(errorMsg);
   }
+
+  const data = await res.json();
+
+  if (!data.success) {
+    throw new Error(data.error || '提交失败');
+  }
+
+  console.log('✅ API 调用成功，generationId:', data.generationId);
+
+  const generationId = data.generationId;
+  message.info(`任务已提交，ID: ${generationId}`);
+
+  if (isGrok) {
+    await pollGrokResult(generationId, targetNode.id, targetNode.position);
+  } else {
+    await pollVideoResult(generationId, targetNode.id, targetNode.position);
+  }
+
+} catch (error: any) {
+  console.error('❌ 执行工作流失败:', error);
+  message.error(error.message || '生成失败');
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
+    )
+  );
+} finally {
+  setProcessing(false);
+}
 };
 
   // ============================================================
