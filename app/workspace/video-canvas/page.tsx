@@ -102,7 +102,8 @@ const VIDEO_MODELS = [
   },
 ];
 
-const DURATION_OPTIONS = [3, 5, 8, 10, 15];
+const ALL_DURATIONS = [4, 5, 6, 8, 10, 12, 15];
+const DURATION_OPTIONS = ALL_DURATIONS;
 
 const ASPECT_RATIO_OPTIONS = [
   { value: '16:9', label: '16:9 (横屏)', icon: '↔️' },
@@ -233,7 +234,7 @@ export default function VideoCanvas() {
   // 顶部工具栏配置状态（用户可见）
   // ============================================================
   const [selectedModel, setSelectedModel] = useState<string>('veo-3.1-generate-preview');
-  const [selectedDuration, setSelectedDuration] = useState<number>(5);
+  const [selectedDuration, setSelectedDuration] = useState<number>(8);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('16:9');
   // ✅ 新增：分辨率状态
   const [selectedResolution, setSelectedResolution] = useState<string>('720p');
