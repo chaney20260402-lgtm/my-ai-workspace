@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -13,6 +13,7 @@ import ReactFlow, {
   MiniMap,
   Panel,
   NodeTypes,
+  EdgeTypes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -29,6 +30,8 @@ import {
 } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCredits } from '@/app/contexts/CreditsContext';
+import AnimatedEdge from './edges/AnimatedEdge';
+import { calculateVideoCredits } from '@/lib/credits';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -37,8 +40,6 @@ const { Option } = Select;
 // 模型配置
 // ============================================================
 const VIDEO_MODELS = [
-  
-  // ✅ 新增 Grok 模型
   { 
     value: 'grok-imagine-video', 
     label: 'Grok Imagine', 
@@ -57,48 +58,43 @@ const VIDEO_MODELS = [
     resolutions: ['480p', '720p', '1080p'],
     description: 'xAI 最新视频模型',
   },
-   { 
+  { 
     value: 'wan2.7', 
     label: 'Wan2.7 视频生成', 
     durations: [4, 6, 8, 10, 12], 
     aspectRatios: ['16:9', '9:16', '1:1'],
     maxDuration: 12,
+    resolutions: ['480p', '720p', '1080p'],
     description: '阿里云万象，支持文生/图生/参考生，音频驱动',
     provider: 'apiyi',
   },
-  // ============================================================
-  // ✅ 新增：VEO 3.1 官转（替代方案）
-  // ============================================================
   { 
     value: 'veo-3.1-official', 
     label: 'VEO 3.1 官转', 
     durations: [4, 6, 8], 
     aspectRatios: ['16:9', '9:16', '1:1'],
     maxDuration: 8,
+    resolutions: ['480p', '720p', '1080p'],
     description: 'Google AI Studio 官方端点，声画同步，支持真人',
     provider: 'apiyi',
   },
-  // ============================================================
-  // ✅ 新增：HappyHorse 1.0
-  // ============================================================
   { 
     value: 'happyhorse-1.0', 
     label: 'HappyHorse 1.0', 
     durations: [4, 6, 8, 10, 12], 
     aspectRatios: ['16:9', '9:16', '1:1'],
     maxDuration: 12,
+    resolutions: ['480p', '720p', '1080p'],
     description: '阿里云，多参考图主体保持（最多9张）',
     provider: 'apiyi',
   },
-  // ============================================================
-  // ✅ 保留：Wan2.6（可选）
-  // ============================================================
   { 
     value: 'wan2.6', 
     label: 'Wan2.6 视频生成', 
     durations: [4, 6, 8, 10, 12], 
     aspectRatios: ['16:9', '9:16', '1:1'],
     maxDuration: 12,
+    resolutions: ['480p', '720p', '1080p'],
     description: '与 Wan2.7 共用端点，含低延迟档',
     provider: 'apiyi',
   },
@@ -128,6 +124,11 @@ const getModelsByDuration = (duration: number) => {
 const getDurationsByModel = (modelValue: string) => {
   const model = VIDEO_MODELS.find(m => m.value === modelValue);
   return model ? model.durations : [];
+};
+
+const getResolutionsByModel = (modelValue: string) => {
+  const model = VIDEO_MODELS.find(m => m.value === modelValue);
+  return model?.resolutions || ['480p', '720p'];
 };
 
 // ============================================================
@@ -218,6 +219,10 @@ const nodeTypes: NodeTypes = {
   videoPreview: VideoPreviewNode,
 };
 
+const edgeTypes: EdgeTypes = {
+  animated: AnimatedEdge,
+};
+
 // ============================================================
 // 主组件
 // ============================================================
@@ -235,10 +240,9 @@ export default function VideoCanvas() {
   // ============================================================
   // 顶部工具栏配置状态（用户可见）
   // ============================================================
-  const [selectedModel, setSelectedModel] = useState<string>('veo-3.1-generate-preview');
+  const [selectedModel, setSelectedModel] = useState<string>('veo-3.1-official');
   const [selectedDuration, setSelectedDuration] = useState<number>(8);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('16:9');
-  // ✅ 新增：分辨率状态
   const [selectedResolution, setSelectedResolution] = useState<string>('720p');
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -252,30 +256,91 @@ export default function VideoCanvas() {
     return getDurationsByModel(selectedModel);
   }, [selectedModel]);
 
-  // 当模型变化时，确保当前时长在支持列表中
+  const availableResolutions = useMemo(() => {
+    return getResolutionsByModel(selectedModel);
+  }, [selectedModel]);
+
+  // 自动打开配置抽屉：添加节点后选中并打开抽屉
+  useEffect(() => {
+    if (selectedNode && selectedNode.type === 'videoGen') {
+      setDrawerOpen(true);
+      form.setFieldsValue(selectedNode.data);
+    }
+  }, [selectedNode, form]);
+
+  // 顶部工具栏配置变化时，自动同步到选中的视频生成节点
+  useEffect(() => {
+    if (selectedNode && selectedNode.type === 'videoGen') {
+      const updatedData = {
+        ...selectedNode.data,
+        model: selectedModel,
+        duration: selectedDuration,
+        aspectRatio: selectedAspectRatio,
+        resolution: selectedResolution,
+      };
+      // 只更新 data，不触发重新渲染循环
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === selectedNode.id ? { ...node, data: updatedData } : node
+        )
+      );
+    }
+  }, [selectedModel, selectedDuration, selectedAspectRatio, selectedResolution, selectedNode, setNodes]);
+
+  // 当模型变化时，确保当前时长和分辨率在支持列表中
   const handleModelChange = (value: string) => {
     setSelectedModel(value);
     const durations = getDurationsByModel(value);
     if (durations.length > 0 && !durations.includes(selectedDuration)) {
       setSelectedDuration(durations[0]);
     }
+    const resolutions = getResolutionsByModel(value);
+    if (resolutions.length > 0 && !resolutions.includes(selectedResolution)) {
+      setSelectedResolution(resolutions[0]);
+    }
   };
 
-  // 当时长变化时，确保当前模型在支持列表中
   const handleDurationChange = (value: number) => {
     setSelectedDuration(value);
     const models = getModelsByDuration(value);
     if (models.length > 0 && !models.some(m => m.value === selectedModel)) {
       setSelectedModel(models[0].value);
     }
+    // 分辨率也要检查是否支持
+    const resolutions = getResolutionsByModel(selectedModel);
+    if (!resolutions.includes(selectedResolution)) {
+      setSelectedResolution(resolutions[0]);
+    }
   };
+
+  // 计算所需积分（用于顶部显示）
+  const imageCount = useMemo(() => {
+    // 检查当前选中的视频生成节点是否有图片
+    if (selectedNode && selectedNode.type === 'videoGen') {
+      const connectedEdges = edges.filter(e => e.target === selectedNode.id);
+      for (const edge of connectedEdges) {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        if (sourceNode && sourceNode.type === 'imageInput' && sourceNode.data.imageUrl) {
+          return 1;
+        }
+      }
+    }
+    return 0;
+  }, [selectedNode, edges, nodes]);
+
+  const requiredCredits = useMemo(() => {
+    return calculateVideoCredits(selectedModel, selectedResolution, selectedDuration, imageCount);
+  }, [selectedModel, selectedResolution, selectedDuration, imageCount]);
 
   const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedNode(node);
     form.setFieldsValue(node.data);
-    setDrawerOpen(true);
+    // 自动打开抽屉
+    if (node.type === 'videoGen' || node.type === 'textInput' || node.type === 'imageInput') {
+      setDrawerOpen(true);
+    }
   }, [form]);
 
   const addNode = (type: string) => {
@@ -291,6 +356,12 @@ export default function VideoCanvas() {
       } : {},
     };
     setNodes((nds) => nds.concat(newNode));
+    setSelectedNode(newNode);
+    // 视频生成节点自动打开抽屉
+    if (type === 'videoGen') {
+      setDrawerOpen(true);
+      form.setFieldsValue(newNode.data);
+    }
     message.success(`已添加 ${type === 'textInput' ? '文本输入' : type === 'imageInput' ? '图片参考' : type === 'videoGen' ? '视频生成' : '预览'} 节点`);
   };
 
@@ -304,6 +375,11 @@ export default function VideoCanvas() {
           message.warning(`模型 ${model.label} 不支持 ${values.duration}秒时长`);
           return;
         }
+        // 同步更新顶部工具栏状态
+        setSelectedModel(values.model);
+        setSelectedDuration(values.duration);
+        setSelectedAspectRatio(values.aspectRatio || selectedAspectRatio);
+        setSelectedResolution(values.resolution || selectedResolution);
       }
     }
     setNodes((nds) =>
@@ -326,7 +402,6 @@ export default function VideoCanvas() {
  const handleImageUpload = async (file: File) => {
   setUploading(true);
   try {
-    // 上传到 Vercel Blob
     const res = await fetch(`/api/upload?filename=${Date.now()}-${file.name}`, {
       method: 'POST',
       body: file,
@@ -357,7 +432,7 @@ export default function VideoCanvas() {
   }
 };
 
-  // ============================================================
+// ============================================================
 // 执行工作流（使用顶部工具栏的配置）
 // ============================================================
 const executeWorkflow = async () => {
@@ -377,9 +452,6 @@ const executeWorkflow = async () => {
   let prompt = '';
   let imageUrl = '';
 
-  // ============================================================
-  // ✅ 获取连接的节点数据（带详细调试日志）
-  // ============================================================
   console.log('🔍 ===== 开始获取节点数据 =====');
   console.log('🔍 连接到目标节点的边数:', connectedEdges.length);
   
@@ -402,7 +474,6 @@ const executeWorkflow = async () => {
         console.log('🔍 是否以 https:// 开头:', imageUrl.startsWith('https://'));
         console.log('🔍 是否包含 public.blob.vercel-storage.com:', imageUrl.includes('public.blob.vercel-storage.com'));
         
-        // 如果没有文本节点连接，使用图片节点的描述
         if (sourceNode.data.prompt && !prompt) {
           prompt = sourceNode.data.prompt || '';
           console.log('🔍 从图片节点获取 prompt:', prompt);
@@ -417,14 +488,10 @@ const executeWorkflow = async () => {
   console.log('  - imageUrl 是否为空:', !imageUrl);
   console.log('  - imageUrl 是否以 https:// 开头:', imageUrl?.startsWith('https://'));
 
-  // ============================================================
-  // ✅ 区分 Grok 模型类型
-  // ============================================================
-  const isGrokPureText = selectedModel === 'grok-imagine-video';      // 纯文本模型
-  const isGrokImage = selectedModel === 'grok-imagine-video-1.5-preview';     // 图生视频模型
+  const isGrokPureText = selectedModel === 'grok-imagine-video';
+  const isGrokImage = selectedModel === 'grok-imagine-video-1.5-preview';
   const isVeo = selectedModel.startsWith('veo');
 
-  // Grok 特殊处理：如果只有图片没有文本，从图片节点获取描述
   if ((isGrokPureText || isGrokImage) && imageUrl && !prompt) {
     const imageNode = nodes.find(n => n.type === 'imageInput' && n.data.imageUrl === imageUrl);
     if (imageNode?.data.prompt) {
@@ -433,21 +500,15 @@ const executeWorkflow = async () => {
     }
   }
 
-  // ============================================================
-  // ✅ 根据模型类型检查必要条件
-  // ============================================================
   if (isGrokPureText) {
-    // 纯文本模型：只要求有提示词
     if (!prompt) {
       message.warning('请填写提示词（文字节点或图片节点的描述）');
       return;
     }
     console.log('🔵 Grok 纯文本模式，无需图片');
-    // 即使有图片也可以传到 API，但 Grok 纯文本模型会忽略图片
   }
 
   if (isGrokImage) {
-    // 图生视频模型：必须要有提示词和图片
     if (!prompt) {
       message.warning('请填写提示词（文字节点或图片节点的描述）');
       return;
@@ -465,7 +526,6 @@ const executeWorkflow = async () => {
   }
 
   if (isVeo) {
-    // Veo 模型：只要求有提示词
     if (!prompt) {
       message.warning('请填写提示词');
       return;
@@ -502,7 +562,7 @@ const executeWorkflow = async () => {
         model: selectedModel,
         duration: selectedDuration,
         aspectRatio: selectedAspectRatio,
-        resolution: selectedResolution,   // ✅ 新增分辨率
+        resolution: selectedResolution,
       }),
     });
 
@@ -551,187 +611,204 @@ const executeWorkflow = async () => {
   }
 };
 
-  // ============================================================
-  // pollVideoResult（API 易轮询）
-  // ============================================================
-  const pollVideoResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
-    let attempts = 0;
-    const maxAttempts = 60;
+// ============================================================
+// pollVideoResult（API 易轮询）
+// ============================================================
+const pollVideoResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
+  let attempts = 0;
+  const maxAttempts = 60;
 
-    const poll = async () => {
-      attempts++;
-      console.log(`🔵 轮询第 ${attempts} 次，generationId: ${generationId}`);
+  const poll = async () => {
+    attempts++;
+    console.log(`🔵 轮询第 ${attempts} 次，generationId: ${generationId}`);
 
-      try {
-        const res = await fetch(`/api/video/status?generationId=${generationId}`);
-        const data = await res.json();
+    try {
+      const res = await fetch(`/api/video/status?generationId=${generationId}`);
+      const data = await res.json();
 
-        console.log(`📥 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
+      console.log(`📥 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
 
-        if (data.status === 'completed' || data.status === 'succeeded') {
-          const videoUrl = data.videoUrl || data.video_url || null;
-          if (videoUrl) {
-            // ✅ 更新积分（如果后端返回 credits）
-            if (data.credits !== undefined) {
-              setCredits(data.credits);
-            }
-            setNodes((nds) =>
-              nds.map((node) =>
-                node.id === nodeId
-                  ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
-                  : node
-              )
-            );
-            const previewNode: Node = {
-              id: `preview-${Date.now()}`,
-              type: 'videoPreview',
-              position: { x: targetPos.x + 200, y: targetPos.y + 50 },
-              data: { videoUrl: videoUrl },
-            };
-            setNodes((nds) => nds.concat(previewNode));
-            message.success('🎬 视频生成成功！');
-            console.log(`✅ 视频 URL: ${videoUrl}`);
-            return;
-          } else {
-            console.warn('⚠️ 状态为 completed 但 videoUrl 为空');
-            message.warning('视频生成完成，但未获取到视频链接');
-            return;
+      if (data.status === 'completed' || data.status === 'succeeded') {
+        const videoUrl = data.videoUrl || data.video_url || null;
+        if (videoUrl) {
+          if (data.credits !== undefined) {
+            setCredits(data.credits);
           }
-        }
-
-        if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
-          if (attempts < maxAttempts) {
-            console.log(`⏳ 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
-            setTimeout(poll, 5000);
-          } else {
-            message.error('生成超时，请稍后刷新查看');
-          }
-          return;
-        }
-
-        if (data.status === 'failed') {
-          const errorMsg = data.error || '视频生成失败';
-          console.error(`❌ 生成失败: ${errorMsg}`);
-          message.error(errorMsg);
+          // 更新生成节点
           setNodes((nds) =>
             nds.map((node) =>
-              node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
+              node.id === nodeId
+                ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
+                : node
             )
           );
+          // 创建预览节点并添加边
+          const previewNodeId = `preview-${Date.now()}`;
+          const previewNode: Node = {
+            id: previewNodeId,
+            type: 'videoPreview',
+            position: { x: targetPos.x + 200, y: targetPos.y + 50 },
+            data: { videoUrl: videoUrl },
+          };
+          setNodes((nds) => nds.concat(previewNode));
+          // 添加边
+          const newEdge: Edge = {
+            id: `edge-${nodeId}-${previewNodeId}`,
+            source: nodeId,
+            target: previewNodeId,
+            animated: true,
+          };
+          setEdges((eds) => eds.concat(newEdge));
+          message.success('🎬 视频生成成功！');
+          console.log(`✅ 视频 URL: ${videoUrl}`);
+          return;
+        } else {
+          console.warn('⚠️ 状态为 completed 但 videoUrl 为空');
+          message.warning('视频生成完成，但未获取到视频链接');
           return;
         }
+      }
 
+      if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
         if (attempts < maxAttempts) {
-          console.log(`⏳ 未知状态 (${data.status})，继续轮询...`);
+          console.log(`⏳ 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
           setTimeout(poll, 5000);
         } else {
-          message.error('生成超时');
+          message.error('生成超时，请稍后刷新查看');
         }
+        return;
+      }
 
-      } catch (error: any) {
-        console.error('❌ 轮询错误:', error);
-        message.error(error.message || '轮询失败');
+      if (data.status === 'failed') {
+        const errorMsg = data.error || '视频生成失败';
+        console.error(`❌ 生成失败: ${errorMsg}`);
+        message.error(errorMsg);
         setNodes((nds) =>
           nds.map((node) =>
             node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
           )
         );
+        return;
       }
-    };
 
-    await poll();
+      if (attempts < maxAttempts) {
+        console.log(`⏳ 未知状态 (${data.status})，继续轮询...`);
+        setTimeout(poll, 5000);
+      } else {
+        message.error('生成超时');
+      }
+
+    } catch (error: any) {
+      console.error('❌ 轮询错误:', error);
+      message.error(error.message || '轮询失败');
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
+        )
+      );
+    }
   };
 
-  // ============================================================
-  // pollGrokResult（Grok 轮询）
-  // ============================================================
-  const pollGrokResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
-    let attempts = 0;
-    const maxAttempts = 60;
+  await poll();
+};
 
-    const poll = async () => {
-      attempts++;
-      console.log(`🔵 Grok 轮询第 ${attempts} 次，generationId: ${generationId}`);
+// ============================================================
+// pollGrokResult（Grok 轮询）
+// ============================================================
+const pollGrokResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
+  let attempts = 0;
+  const maxAttempts = 60;
 
-      try {
-        const res = await fetch(`/api/video/grok/status?generationId=${generationId}`);
-        const data = await res.json();
+  const poll = async () => {
+    attempts++;
+    console.log(`🔵 Grok 轮询第 ${attempts} 次，generationId: ${generationId}`);
 
-        console.log(`📥 Grok 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
+    try {
+      const res = await fetch(`/api/video/grok/status?generationId=${generationId}`);
+      const data = await res.json();
 
-        if (data.status === 'done' || data.status === 'completed' || data.status === 'succeeded') {
-          const videoUrl = data.videoUrl || data.video?.url || null;
-          if (videoUrl) {
-            // ✅ 更新积分（如果后端返回 credits）
-            if (data.credits !== undefined) {
-              setCredits(data.credits);
-            }
-            setNodes((nds) =>
-              nds.map((node) =>
-                node.id === nodeId
-                  ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
-                  : node
-              )
-            );
-            const previewNode: Node = {
-              id: `preview-${Date.now()}`,
-              type: 'videoPreview',
-              position: { x: targetPos.x + 200, y: targetPos.y + 50 },
-              data: { videoUrl: videoUrl },
-            };
-            setNodes((nds) => nds.concat(previewNode));
-            message.success('🎬 Grok 视频生成成功！');
-            console.log(`✅ Grok 视频 URL: ${videoUrl}`);
-            return;
-          } else {
-            console.warn('⚠️ Grok 状态为 done 但 videoUrl 为空');
-            message.warning('视频生成完成，但未获取到视频链接');
-            return;
+      console.log(`📥 Grok 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
+
+      if (data.status === 'done' || data.status === 'completed' || data.status === 'succeeded') {
+        const videoUrl = data.videoUrl || data.video?.url || null;
+        if (videoUrl) {
+          if (data.credits !== undefined) {
+            setCredits(data.credits);
           }
-        }
-
-        if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
-          if (attempts < maxAttempts) {
-            console.log(`⏳ Grok 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
-            setTimeout(poll, 5000);
-          } else {
-            message.error('Grok 生成超时，请稍后刷新查看');
-          }
-          return;
-        }
-
-        if (data.status === 'failed' || data.status === 'expired') {
-          const errorMsg = data.error || 'Grok 视频生成失败';
-          console.error(`❌ Grok 生成失败: ${errorMsg}`);
-          message.error(errorMsg);
           setNodes((nds) =>
             nds.map((node) =>
-              node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
+              node.id === nodeId
+                ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
+                : node
             )
           );
+          const previewNodeId = `preview-${Date.now()}`;
+          const previewNode: Node = {
+            id: previewNodeId,
+            type: 'videoPreview',
+            position: { x: targetPos.x + 200, y: targetPos.y + 50 },
+            data: { videoUrl: videoUrl },
+          };
+          setNodes((nds) => nds.concat(previewNode));
+          const newEdge: Edge = {
+            id: `edge-${nodeId}-${previewNodeId}`,
+            source: nodeId,
+            target: previewNodeId,
+            animated: true,
+          };
+          setEdges((eds) => eds.concat(newEdge));
+          message.success('🎬 Grok 视频生成成功！');
+          console.log(`✅ Grok 视频 URL: ${videoUrl}`);
+          return;
+        } else {
+          console.warn('⚠️ Grok 状态为 done 但 videoUrl 为空');
+          message.warning('视频生成完成，但未获取到视频链接');
           return;
         }
+      }
 
+      if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
         if (attempts < maxAttempts) {
-          console.log(`⏳ Grok 未知状态 (${data.status})，继续轮询...`);
+          console.log(`⏳ Grok 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
           setTimeout(poll, 5000);
         } else {
-          message.error('Grok 生成超时');
+          message.error('Grok 生成超时，请稍后刷新查看');
         }
+        return;
+      }
 
-      } catch (error: any) {
-        console.error('❌ Grok 轮询错误:', error);
-        message.error(error.message || '轮询失败');
+      if (data.status === 'failed' || data.status === 'expired') {
+        const errorMsg = data.error || 'Grok 视频生成失败';
+        console.error(`❌ Grok 生成失败: ${errorMsg}`);
+        message.error(errorMsg);
         setNodes((nds) =>
           nds.map((node) =>
             node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
           )
         );
+        return;
       }
-    };
 
-    await poll();
+      if (attempts < maxAttempts) {
+        console.log(`⏳ Grok 未知状态 (${data.status})，继续轮询...`);
+        setTimeout(poll, 5000);
+      } else {
+        message.error('Grok 生成超时');
+      }
+
+    } catch (error: any) {
+      console.error('❌ Grok 轮询错误:', error);
+      message.error(error.message || '轮询失败');
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
+        )
+      );
+    }
   };
+
+  await poll();
+};
 
   const onDrawerClose = () => {
     setDrawerOpen(false);
@@ -801,20 +878,20 @@ const executeWorkflow = async () => {
             ))}
           </Select>
 
-          {/* ✅ 新增：分辨率下拉框 */}
           <Select
             value={selectedResolution}
             onChange={setSelectedResolution}
             style={{ width: 100 }}
             placeholder="分辨率"
           >
-            {RESOLUTION_OPTIONS.map(opt => (
-              <Option key={opt.value} value={opt.value}>{opt.label}</Option>
+            {availableResolutions.map(res => (
+              <Option key={res} value={res}>{res}</Option>
             ))}
           </Select>
 
-          <Tag color="green" style={{ fontSize: 11 }}>
-            {selectedModel} · {selectedDuration}s · {selectedResolution} · {selectedAspectRatio}
+          {/* 积分显示 */}
+          <Tag color="gold" style={{ fontSize: 13, fontWeight: 600 }}>
+            💰 {requiredCredits} 积分
           </Tag>
         </div>
 
@@ -841,6 +918,7 @@ const executeWorkflow = async () => {
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
         >
           <Background />
@@ -910,6 +988,10 @@ const executeWorkflow = async () => {
                           form.setFieldsValue({ duration: durations[0] });
                         }
                       }
+                      const resolutions = getResolutionsByModel(value);
+                      if (resolutions.length > 0 && !resolutions.includes(form.getFieldValue('resolution'))) {
+                        form.setFieldsValue({ resolution: resolutions[0] });
+                      }
                     }}
                   >
                     {availableModels.map(model => (
@@ -933,8 +1015,8 @@ const executeWorkflow = async () => {
                 </Form.Item>
                 <Form.Item name="resolution" label="分辨率">
                   <Select>
-                    {RESOLUTION_OPTIONS.map(opt => (
-                      <Option key={opt.value} value={opt.value}>{opt.label}</Option>
+                    {availableResolutions.map(res => (
+                      <Option key={res} value={res}>{res}</Option>
                     ))}
                   </Select>
                 </Form.Item>
