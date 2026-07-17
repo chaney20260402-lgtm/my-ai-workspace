@@ -5,17 +5,17 @@ export async function POST(req: NextRequest) {
   try {
     const { phone, credits, reason } = await req.json();
 
-    // 参数校验
     if (!phone || !credits || credits <= 0) {
       return NextResponse.json({ error: '手机号和积分数量必填，且积分必须为正数' }, { status: 400 });
     }
 
+    // 先查询用户是否存在
     const user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
 
-    // 事务：增加积分 + 记录交易
+    // 使用 $transaction 并增加超时时间（30秒）
     const updatedUser = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { phone },
@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
         },
       });
       return updated;
+    }, {
+      timeout: 30000, // 30秒超时
     });
 
     return NextResponse.json({
