@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   try {
     const { phone, credits, reason } = await req.json();
 
-    // 基础参数校验
+    // 参数校验
     if (!phone || !credits || credits <= 0) {
       return NextResponse.json({ error: '手机号和积分数量必填，且积分必须为正数' }, { status: 400 });
     }
