@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-const ADMIN_PHONE = process.env.ADMIN_PHONE || '13929767725';
-
 export async function POST(req: NextRequest) {
   try {
-    // 从请求体获取所有参数，包括 adminPhone
-    const { phone, credits, reason, adminPhone } = await req.json();
+    const { phone, credits, reason } = await req.json();
 
-    // 验证管理员身份（直接比较 adminPhone 和预设值）
-    if (!adminPhone || adminPhone !== ADMIN_PHONE) {
-      console.error(`❌ 权限拒绝: adminPhone=${adminPhone}, ADMIN_PHONE=${ADMIN_PHONE}`);
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    // 参数校验
+    // 基础参数校验
     if (!phone || !credits || credits <= 0) {
       return NextResponse.json({ error: '手机号和积分数量必填，且积分必须为正数' }, { status: 400 });
     }
@@ -24,6 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
 
+    // 事务：增加积分 + 记录交易
     const updatedUser = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { phone },
