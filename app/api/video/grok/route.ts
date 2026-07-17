@@ -2,11 +2,13 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { checkUserCredits, checkAndDeductCredits } from '@/lib/credits';
+import { checkUserCredits, calculateVideoCredits } from '@/lib/credits';
+import { getRedis } from '@/lib/redis';
 
+// ✅ 移除 grok-imagine-video-1.5，只保留存在的模型
 const GROK_MODELS = {
-  'grok-imagine-video': { label: 'Grok Imagine', costPerSecond: 0.08 },
-  'grok-imagine-video-1.5': { label: 'Grok Imagine 1.5 Preview', costPerSecond: 0.08 },
+  'grok-imagine-video': { label: 'Grok Imagine' },
+  'grok-imagine-video-1.5-preview': { label: 'Grok Imagine 1.5 Preview' },
 };
 
 export async function POST(request: Request) {
@@ -17,22 +19,30 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { prompt, imageUrl, model = 'grok-imagine-video', duration = 5, aspectRatio = '16:9' } = body;
+    const { prompt, imageUrl, model = 'grok-imagine-video', duration = 5, aspectRatio = '16:9', resolution = '720p' } = body;
 
     // ============================================================
     // ✅ 打印接收到的完整 body
     // ============================================================
     console.log('📥 Grok API 接收到完整 body:', JSON.stringify(body, null, 2));
     console.log('📥 提取的 imageUrl:', imageUrl);
-    console.log('📥 imageUrl 类型:', typeof imageUrl);
-    console.log('📥 imageUrl 是否为空字符串:', imageUrl === '');
-    console.log('📥 imageUrl 是否为 undefined:', imageUrl === undefined);
+    console.log('📥 提取的 resolution:', resolution);
+    console.log('📥 提取的 duration:', duration);
+    console.log('📥 提取的 model:', model);
 
     if (!prompt) {
       return NextResponse.json({ error: '请输入描述词' }, { status: 400 });
     }
 
-    const isGrok15 = model === 'grok-imagine-video-1.5';
+    // 检查模型是否存在
+    if (!GROK_MODELS[model as keyof typeof GROK_MODELS]) {
+      return NextResponse.json(
+        { error: `不支持的模型: ${model}` },
+        { status: 400 }
+      );
+    }
+
+    const isGrok15 = model === 'grok-imagine-video-1.5-preview';
 
     // ============================================================
     // ✅ 1.5 版本强制需要图片
@@ -50,12 +60,27 @@ export async function POST(request: Request) {
     }
 
     const userPhone = session.user.phone;
-    const costPerSecond = GROK_MODELS[model as keyof typeof GROK_MODELS]?.costPerSecond || 0.08;
-    const totalCost = Math.ceil(duration * costPerSecond);
 
-    const hasEnough = await checkUserCredits(userPhone, totalCost);
+    // ============================================================
+    // ✅ 计算所需积分（预检查，不扣除）
+    // ============================================================
+    const imageCount = imageUrl ? 1 : 0;
+    const requiredCredits = calculateVideoCredits(model, resolution, duration, imageCount);
+
+    if (requiredCredits === 0) {
+      return NextResponse.json(
+        { error: `不支持的模型或分辨率: ${model} / ${resolution}` },
+        { status: 400 }
+      );
+    }
+
+    // 检查积分是否充足（但不扣除）
+    const hasEnough = await checkUserCredits(userPhone, requiredCredits);
     if (!hasEnough) {
-      return NextResponse.json({ error: `积分不足，需要 ${totalCost} 积分` }, { status: 402 });
+      return NextResponse.json(
+        { error: `积分不足，需要 ${requiredCredits} 积分` },
+        { status: 402 }
+      );
     }
 
     const XAI_API_KEY = process.env.XAI_API_KEY;
@@ -64,32 +89,30 @@ export async function POST(request: Request) {
     }
 
     // ============================================================
-    // ✅ 构建请求体 - 根据模型类型决定是否需要 image_url
+    // ✅ 构建请求体 - 根据模型类型决定是否需要 image
     // ============================================================
     const payload: any = {
       model: model,
       prompt: prompt,
+      duration: duration,
+      aspect_ratio: aspectRatio,
+      resolution: resolution,
     };
 
     // ✅ 对于 1.5 版本，使用 image 结构（官方要求）
-if (isGrok15) {
-  // ✅ 关键修正：使用 image: { url: imageUrl }
-  payload.image = { url: imageUrl };
-  payload.resolution = "720p";  // 推荐添加
-  console.log('🟣 1.5 版本，添加 image:', payload.image);
-  console.log('🟣 1.5 版本，分辨率: 720p');
-} else {
-  // 对于普通版本，如果有图片才添加（保持原逻辑）
-  if (imageUrl && imageUrl.trim() !== '') {
-    payload.image = { url: imageUrl };
-    console.log('✅ 已添加 image 到 payload:', payload.image);
-  } else {
-    console.log('⚠️ 没有 image_url，纯文本模式');
-  }
-}
-
-    if (duration) payload.duration = duration;
-    if (aspectRatio) payload.aspect_ratio = aspectRatio;
+    if (isGrok15) {
+      payload.image = { url: imageUrl };
+      console.log('🟣 1.5 版本，添加 image:', payload.image);
+      console.log('🟣 1.5 版本，分辨率:', resolution);
+    } else {
+      // 对于普通版本，如果有图片才添加
+      if (imageUrl && imageUrl.trim() !== '') {
+        payload.image = { url: imageUrl };
+        console.log('✅ 已添加 image 到 payload:', payload.image);
+      } else {
+        console.log('⚠️ 没有 image_url，纯文本模式');
+      }
+    }
 
     console.log('📤 Grok 最终 Payload:', JSON.stringify(payload, null, 2));
 
@@ -125,11 +148,31 @@ if (isGrok15) {
       );
     }
 
-    await checkAndDeductCredits(userPhone, totalCost, `Grok 视频生成 (${model})`);
+    // ============================================================
+    // ✅ 返回 generationId，但不扣除积分（积分在轮询成功时扣除）
+    // 同时存储参数到 Redis，用于轮询时计算积分
+    // ============================================================
+    const generationId = data.request_id;
+
+    // 存储参数到 Redis，供轮询接口使用
+    const redis = getRedis();
+    const paramsKey = `video:params:${generationId}`;
+    await redis.set(paramsKey, JSON.stringify({
+      model,
+      resolution,
+      duration,
+      imageCount,
+      userPhone,
+      requiredCredits,
+    }), 'EX', 3600); // 1小时过期
+
+    console.log('✅ 任务已提交，generationId:', generationId);
+    console.log('💰 预计算所需积分:', requiredCredits);
 
     return NextResponse.json({
       success: true,
-      generationId: data.request_id,
+      generationId: generationId,
+      requiredCredits: requiredCredits,
       provider: 'grok',
     });
   } catch (error: any) {

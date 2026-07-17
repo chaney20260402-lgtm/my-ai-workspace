@@ -28,6 +28,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
+import { useCredits } from '@/app/contexts/CreditsContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -111,6 +112,12 @@ const ASPECT_RATIO_OPTIONS = [
   { value: '3:4', label: '3:4 (竖屏)', icon: '📱' },
 ];
 
+const RESOLUTION_OPTIONS = [
+  { value: '480p', label: '480p' },
+  { value: '720p', label: '720p' },
+  { value: '1080p', label: '1080p' },
+];
+
 const getModelsByDuration = (duration: number) => {
   return VIDEO_MODELS.filter(m => m.durations.includes(duration));
 };
@@ -178,6 +185,7 @@ const VideoGenNode = ({ data }: { data: any }) => {
       </div>
       {data.duration && <div style={{ fontSize: 12, color: '#666' }}>时长: {data.duration}s</div>}
       {data.aspectRatio && <div style={{ fontSize: 12, color: '#666' }}>比例: {data.aspectRatio}</div>}
+      {data.resolution && <div style={{ fontSize: 12, color: '#666' }}>分辨率: {data.resolution}</div>}
       <div style={{ fontSize: 12, color: statusColor, marginTop: 2 }}>{statusText}</div>
     </div>
   );
@@ -211,6 +219,8 @@ const nodeTypes: NodeTypes = {
 // 主组件
 // ============================================================
 export default function VideoCanvas() {
+  const { setCredits } = useCredits();
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -225,6 +235,8 @@ export default function VideoCanvas() {
   const [selectedModel, setSelectedModel] = useState<string>('veo-3.1-generate-preview');
   const [selectedDuration, setSelectedDuration] = useState<number>(5);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('16:9');
+  // ✅ 新增：分辨率状态
+  const [selectedResolution, setSelectedResolution] = useState<string>('720p');
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
@@ -272,6 +284,7 @@ export default function VideoCanvas() {
         model: selectedModel, 
         duration: selectedDuration, 
         aspectRatio: selectedAspectRatio,
+        resolution: selectedResolution,
       } : {},
     };
     setNodes((nds) => nds.concat(newNode));
@@ -405,7 +418,7 @@ const executeWorkflow = async () => {
   // ✅ 区分 Grok 模型类型
   // ============================================================
   const isGrokPureText = selectedModel === 'grok-imagine-video';      // 纯文本模型
-  const isGrokImage = selectedModel === 'grok-imagine-video-1.5';     // 图生视频模型
+  const isGrokImage = selectedModel === 'grok-imagine-video-1.5-preview';     // 图生视频模型
   const isVeo = selectedModel.startsWith('veo');
 
   // Grok 特殊处理：如果只有图片没有文本，从图片节点获取描述
@@ -461,6 +474,7 @@ const executeWorkflow = async () => {
   console.log('  - prompt:', prompt);
   console.log('  - imageUrl:', imageUrl);
   console.log('  - selectedModel:', selectedModel);
+  console.log('  - selectedResolution:', selectedResolution);
 
   setProcessing(true);
   try {
@@ -474,7 +488,7 @@ const executeWorkflow = async () => {
     );
 
     console.log('🔵 正在调用 API:', apiEndpoint);
-    console.log('🔵 请求体:', { prompt, imageUrl, model: selectedModel, duration: selectedDuration });
+    console.log('🔵 请求体:', { prompt, imageUrl, model: selectedModel, duration: selectedDuration, resolution: selectedResolution });
 
     const res = await fetch(apiEndpoint, {
       method: 'POST',
@@ -485,6 +499,7 @@ const executeWorkflow = async () => {
         model: selectedModel,
         duration: selectedDuration,
         aspectRatio: selectedAspectRatio,
+        resolution: selectedResolution,   // ✅ 新增分辨率
       }),
     });
 
@@ -553,6 +568,10 @@ const executeWorkflow = async () => {
         if (data.status === 'completed' || data.status === 'succeeded') {
           const videoUrl = data.videoUrl || data.video_url || null;
           if (videoUrl) {
+            // ✅ 更新积分（如果后端返回 credits）
+            if (data.credits !== undefined) {
+              setCredits(data.credits);
+            }
             setNodes((nds) =>
               nds.map((node) =>
                 node.id === nodeId
@@ -640,6 +659,10 @@ const executeWorkflow = async () => {
         if (data.status === 'done' || data.status === 'completed' || data.status === 'succeeded') {
           const videoUrl = data.videoUrl || data.video?.url || null;
           if (videoUrl) {
+            // ✅ 更新积分（如果后端返回 credits）
+            if (data.credits !== undefined) {
+              setCredits(data.credits);
+            }
             setNodes((nds) =>
               nds.map((node) =>
                 node.id === nodeId
@@ -775,8 +798,20 @@ const executeWorkflow = async () => {
             ))}
           </Select>
 
+          {/* ✅ 新增：分辨率下拉框 */}
+          <Select
+            value={selectedResolution}
+            onChange={setSelectedResolution}
+            style={{ width: 100 }}
+            placeholder="分辨率"
+          >
+            {RESOLUTION_OPTIONS.map(opt => (
+              <Option key={opt.value} value={opt.value}>{opt.label}</Option>
+            ))}
+          </Select>
+
           <Tag color="green" style={{ fontSize: 11 }}>
-            {selectedModel} · {selectedDuration}s · {selectedAspectRatio}
+            {selectedModel} · {selectedDuration}s · {selectedResolution} · {selectedAspectRatio}
           </Tag>
         </div>
 
@@ -838,26 +873,26 @@ const executeWorkflow = async () => {
               </Form.Item>
             )}
             {selectedNode.type === 'imageInput' && (
-  <>
-    <Form.Item name="prompt" label="图片描述（用于视频生成）">
-      <Input.TextArea 
-        rows={3} 
-        placeholder="请输入这张图片的描述，如：一只猫在花园里奔跑，阳光明媚，高清" 
-      />
-    </Form.Item>
-    <Form.Item name="imageUrl" label="图片URL">
-      <Input placeholder="输入图片URL（或上传图片自动获取）" />
-    </Form.Item>
-    <Form.Item label="上传图片">
-      <Upload
-        accept="image/*"
-        beforeUpload={handleImageUpload}
-        showUploadList={false}
-      >
-        <Button loading={uploading}>上传图片</Button>
-      </Upload>
-    </Form.Item>
-  </>
+              <>
+                <Form.Item name="prompt" label="图片描述（用于视频生成）">
+                  <Input.TextArea 
+                    rows={3} 
+                    placeholder="请输入这张图片的描述，如：一只猫在花园里奔跑，阳光明媚，高清" 
+                  />
+                </Form.Item>
+                <Form.Item name="imageUrl" label="图片URL">
+                  <Input placeholder="输入图片URL（或上传图片自动获取）" />
+                </Form.Item>
+                <Form.Item label="上传图片">
+                  <Upload
+                    accept="image/*"
+                    beforeUpload={handleImageUpload}
+                    showUploadList={false}
+                  >
+                    <Button loading={uploading}>上传图片</Button>
+                  </Upload>
+                </Form.Item>
+              </>
             )}
             {selectedNode.type === 'videoGen' && (
               <>
@@ -890,6 +925,13 @@ const executeWorkflow = async () => {
                   <Select>
                     {ASPECT_RATIO_OPTIONS.map(opt => (
                       <Option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+                <Form.Item name="resolution" label="分辨率">
+                  <Select>
+                    {RESOLUTION_OPTIONS.map(opt => (
+                      <Option key={opt.value} value={opt.value}>{opt.label}</Option>
                     ))}
                   </Select>
                 </Form.Item>
