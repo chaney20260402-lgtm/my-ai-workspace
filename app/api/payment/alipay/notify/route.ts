@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { addCredits } from '@/lib/credits';
+import { prisma } from '@/lib/prisma';
 import { createRequire } from 'module';
 
 let alipaySdkInstance: any = null;
@@ -71,13 +72,55 @@ export async function POST(request: NextRequest) {
     }
     const order = JSON.parse(orderData);
 
-    // 4. 增加积分
-    await addCredits(order.userId, order.credits, `支付宝支付: ${orderId}`);
+    // ============================================================
+    // ✅ 4. 同时更新 PostgreSQL 和 Redis（积分 + 会员类型）
+    // ============================================================
+    
+    // 4.1 更新 PostgreSQL
+    const user = await prisma.user.findUnique({
+      where: { phone: order.userId },
+    });
+
+    if (!user) {
+      console.error(`❌ 用户 ${order.userId} 不存在`);
+      return NextResponse.json({ message: 'success' });
+    }
+
+    const newCredits = (user.credits || 0) + order.credits;
+    let newMembershipType = user.membershipType || 'experience';
+
+    // 如果是会员套餐，更新会员类型
+    if (order.membershipType) {
+      newMembershipType = order.membershipType;
+    }
+
+    // 更新 PostgreSQL
+    await prisma.user.update({
+      where: { phone: order.userId },
+      data: {
+        credits: newCredits,
+        membershipType: newMembershipType,
+      },
+    });
+
+    // 4.2 更新 Redis（同步积分）
+    await redis.set(`user:${order.userId}`, String(newCredits));
+
+    // 4.3 记录积分变动
+    const recordKey = `credit_records:${order.userId}`;
+    const record = JSON.stringify({
+      amount: order.credits,
+      type: 'recharge',
+      description: `支付宝充值 ${order.credits} 积分 ${order.membershipType ? `+ 会员 ${order.membershipType}` : ''}`,
+      createdAt: new Date().toISOString(),
+    });
+    await redis.lpush(recordKey, record);
+    await redis.ltrim(recordKey, 0, 99);
 
     // 5. 标记订单已处理
     await redis.setex(processedKey, 86400, '1');
 
-    console.log(`✅ 支付宝回调处理成功: 用户 ${order.userId} 获得 ${order.credits} 积分`);
+    console.log(`✅ 用户 ${order.userId} 充值成功: +${order.credits} 积分，新积分 ${newCredits}，会员 ${newMembershipType}`);
 
     return NextResponse.json({ message: 'success' });
   } catch (error) {

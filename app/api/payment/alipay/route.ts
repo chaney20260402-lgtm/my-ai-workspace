@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
         userId,
         credits,
         amount,
+        membershipType: body.membershipType || null,  // ✅ 新增
         status: 'pending',
         createdAt: Date.now(),
       });
