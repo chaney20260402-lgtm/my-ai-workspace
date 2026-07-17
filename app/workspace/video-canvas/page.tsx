@@ -36,22 +36,7 @@ const { Option } = Select;
 // 模型配置
 // ============================================================
 const VIDEO_MODELS = [
-  { 
-    value: 'veo-3.1-generate-preview', 
-    label: 'Veo 3.1 (高质量)', 
-    durations: [5, 8], 
-    aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'],
-    maxDuration: 8,
-    description: '最高质量，适合专业制作',
-  },
-  { 
-    value: 'veo-3.1-fast-generate-preview', 
-    label: 'Veo 3.1 Fast (快速)', 
-    durations: [3, 5, 8], 
-    aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'],
-    maxDuration: 8,
-    description: '快速生成，适合快速预览',
-  },
+  
   // ✅ 新增 Grok 模型
   { 
     value: 'grok-imagine-video', 
@@ -68,6 +53,51 @@ const VIDEO_MODELS = [
     aspectRatios: ['16:9', '9:16', '1:1'],
     maxDuration: 15,
     description: 'xAI 最新视频模型',
+  },
+   { 
+    value: 'wan2.7', 
+    label: 'Wan2.7 视频生成', 
+    durations: [4, 6, 8, 10, 12], 
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 12,
+    description: '阿里云万象，支持文生/图生/参考生，音频驱动',
+    provider: 'apiyi',
+  },
+  // ============================================================
+  // ✅ 新增：VEO 3.1 官转（替代方案）
+  // ============================================================
+  { 
+    value: 'veo-3.1-official', 
+    label: 'VEO 3.1 官转', 
+    durations: [4, 6, 8], 
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 8,
+    description: 'Google AI Studio 官方端点，声画同步，支持真人',
+    provider: 'apiyi',
+  },
+  // ============================================================
+  // ✅ 新增：HappyHorse 1.0
+  // ============================================================
+  { 
+    value: 'happyhorse-1.0', 
+    label: 'HappyHorse 1.0', 
+    durations: [4, 6, 8, 10, 12], 
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 12,
+    description: '阿里云，多参考图主体保持（最多9张）',
+    provider: 'apiyi',
+  },
+  // ============================================================
+  // ✅ 保留：Wan2.6（可选）
+  // ============================================================
+  { 
+    value: 'wan2.6', 
+    label: 'Wan2.6 视频生成', 
+    durations: [4, 6, 8, 10, 12], 
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 12,
+    description: '与 Wan2.7 共用端点，含低延迟档',
+    provider: 'apiyi',
   },
 ];
 
