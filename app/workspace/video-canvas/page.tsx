@@ -31,7 +31,7 @@ import {
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCredits } from '@/app/contexts/CreditsContext';
 import AnimatedEdge from './edges/AnimatedEdge';
-import { calculateVideoCredits } from '@/lib/credits';
+import { calculateVideoCredits } from '@/lib/video-credits';
 
 const { Title, Text } = Typography;
 const { Option } = Select;

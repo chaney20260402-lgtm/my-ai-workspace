@@ -119,64 +119,10 @@ export async function getCreditRecords(userId: string, limit: number = 30): Prom
 }
 
 // ============================================================
-// ✅ 视频生成积分费率配置
+// ✅ 重新导出视频积分计算函数（从 video-credits.ts）
 // ============================================================
-
-/**
- * 视频生成积分费率配置
- * 注意：模型名称与 xAI API 保持一致，使用 -preview 后缀
- */
-export const VIDEO_RATES = {
-  'grok-imagine-video': {
-    imagePerImage: 0.2,
-    videoPerSecond: { '480p': 1, '720p': 5, '1080p': 7 },
-  },
-  // 1.5 版本只有 preview 后缀的模型
-  'grok-imagine-video-1.5-preview': {
-    imagePerImage: 1,
-    videoPerSecond: { '480p': 8, '720p': 14, '1080p': 17.5 },
-  },
-  // 后续可扩展其他模型
-  // 'wan2.7': { ... },
-  // 'veo-3.1-official': { ... },
-};
-
-/**
- * 获取模型费率
- * @param model 模型名称（会自动移除 -preview 后缀匹配）
- * @returns 费率配置对象，如果找不到则返回 null
- */
-export function getVideoRates(model: string) {
-  // 先直接匹配
-  if (VIDEO_RATES[model as keyof typeof VIDEO_RATES]) {
-    return VIDEO_RATES[model as keyof typeof VIDEO_RATES];
-  }
-  // 如果找不到，尝试移除 -preview 后缀匹配
-  const baseModel = model.replace(/-preview$/, '');
-  return VIDEO_RATES[baseModel as keyof typeof VIDEO_RATES] || null;
-}
-
-/**
- * 计算视频生成所需积分
- * @param model 模型名称（如 'grok-imagine-video-1.5-preview'）
- * @param resolution 分辨率 '480p' | '720p' | '1080p'
- * @param duration 时长（秒）
- * @param imageCount 图片数量（0 或 1）
- * @returns 所需积分（向上取整），如果模型不支持则返回 0
- */
-export function calculateVideoCredits(
-  model: string,
-  resolution: string,
-  duration: number,
-  imageCount: number = 0
-): number {
-  const rates = getVideoRates(model);
-  if (!rates) return 0; // 未知模型返回 0，调用方需处理
-
-  const imageCost = rates.imagePerImage * imageCount;
-  const ratePerSecond = rates.videoPerSecond[resolution as keyof typeof rates.videoPerSecond];
-  if (!ratePerSecond) return 0; // 不支持的分辨率
-
-  const videoCost = ratePerSecond * duration;
-  return Math.ceil(imageCost + videoCost);
-}
+export { 
+  VIDEO_RATES, 
+  getVideoRates, 
+  calculateVideoCredits 
+} from './video-credits';
