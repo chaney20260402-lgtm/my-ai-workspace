@@ -2,18 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Table, Spin, message, Typography, Button, Input, Form, InputNumber } from 'antd';
+import { useSession } from 'next-auth/react'; // 👈 ① 新增导入
 
 const { Title } = Typography;
 
 export default function UsageClient() {
+  const { data: session } = useSession(); // 👈 ② 获取 session
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
 
-  // ---- 积分补偿相关状态 ----
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
-  // 加载统计数据
   useEffect(() => {
     fetch('/api/usage/stats')
       .then(res => res.json())
@@ -27,21 +27,23 @@ export default function UsageClient() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 积分补偿提交
+  // 👇 ③ 修改 onFinishCompensation，增加 adminPhone 字段
   const onFinishCompensation = async (values: { phone: string; credits: number; reason?: string }) => {
     setSubmitting(true);
     try {
       const res = await fetch('/api/admin/add-credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          adminPhone: session?.user?.phone, // 传递当前登录用户的手机号
+        }),
       });
       const data = await res.json();
       if (data.success) {
         message.success(`✅ 成功为 ${values.phone} 增加 ${values.credits} 积分`);
         form.resetFields();
-        // 可选：刷新统计数据（如需立即反映变化）
-        // 重新请求 /api/usage/stats 刷新
+        // 刷新统计数据
         const refreshRes = await fetch('/api/usage/stats');
         const refreshData = await refreshRes.json();
         if (!refreshData.error) setStats(refreshData);
