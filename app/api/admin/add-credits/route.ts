@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'; // 导入 authOptions
 
-// 你的管理员手机号（与页面权限保持一致）
-const ADMIN_PHONE = process.env.ADMIN_PHONE || '13929767725'; // 替换为你的真实号码
+// 管理员手机号（从环境变量读取，硬编码兜底）
+const ADMIN_PHONE = process.env.ADMIN_PHONE || '13929767725';
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. 获取当前登录用户
-    const session = await getServerSession();
+    // 1. 显式传入 authOptions，确保 session 包含 phone 字段
+    const session = await getServerSession(authOptions);
     const currentPhone = session?.user?.phone;
 
-    // 2. 验证是否为管理员（与页面权限一致）
-    if (!currentPhone || currentPhone !== ADMIN_PHONE) {
+    // 调试日志（部署后可在 Vercel Functions 中查看）
+    console.log('🔍 [add-credits] session:', JSON.stringify(session, null, 2));
+    console.log('🔍 [add-credits] currentPhone:', currentPhone);
+    console.log('🔍 [add-credits] ADMIN_PHONE:', ADMIN_PHONE);
+
+    // 2. 验证是否为管理员
+    if (!currentPhone) {
+      console.error('❌ session.user.phone 不存在');
+      return NextResponse.json({ error: '未登录或 session 无效' }, { status: 401 });
+    }
+    if (currentPhone !== ADMIN_PHONE) {
+      console.error(`❌ 权限拒绝: ${currentPhone} !== ${ADMIN_PHONE}`);
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
@@ -52,7 +63,7 @@ export async function POST(req: NextRequest) {
       newCredits: updatedUser.credits,
     });
   } catch (error) {
-    console.error('积分补偿失败:', error);
+    console.error('❌ 积分补偿失败:', error);
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });
   }
 }
