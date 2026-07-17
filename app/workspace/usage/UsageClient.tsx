@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Spin, message, Typography } from 'antd';
+import { Card, Row, Col, Statistic, Table, Spin, message, Typography, Button, Input, Form, InputNumber } from 'antd';
 
 const { Title } = Typography;
 
@@ -9,6 +9,11 @@ export default function UsageClient() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
 
+  // ---- 积分补偿相关状态 ----
+  const [form] = Form.useForm();
+  const [submitting, setSubmitting] = useState(false);
+
+  // 加载统计数据
   useEffect(() => {
     fetch('/api/usage/stats')
       .then(res => res.json())
@@ -21,6 +26,34 @@ export default function UsageClient() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // 积分补偿提交
+  const onFinishCompensation = async (values: { phone: string; credits: number; reason?: string }) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/add-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json();
+      if (data.success) {
+        message.success(`✅ 成功为 ${values.phone} 增加 ${values.credits} 积分`);
+        form.resetFields();
+        // 可选：刷新统计数据（如需立即反映变化）
+        // 重新请求 /api/usage/stats 刷新
+        const refreshRes = await fetch('/api/usage/stats');
+        const refreshData = await refreshRes.json();
+        if (!refreshData.error) setStats(refreshData);
+      } else {
+        message.error(data.error || '操作失败');
+      }
+    } catch (error) {
+      message.error('网络错误，请重试');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -62,7 +95,47 @@ export default function UsageClient() {
     <div style={{ padding: 24 }}>
       <Title level={2}>📊 全平台使用统计（管理员）</Title>
 
-      {/* 汇总卡片 */}
+      {/* ===== 新增：积分补偿卡片 ===== */}
+      <Card 
+        title="🎁 积分补偿 / 手动发放" 
+        style={{ marginBottom: 24, borderColor: '#faad14' }}
+        headStyle={{ backgroundColor: '#fffbe6' }}
+      >
+        <Form form={form} layout="vertical" onFinish={onFinishCompensation}>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="phone"
+                label="用户手机号"
+                rules={[{ required: true, message: '请输入用户手机号' }]}
+              >
+                <Input placeholder="请输入注册手机号" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item
+                name="credits"
+                label="积分数量"
+                rules={[{ required: true, message: '请输入积分数量' }]}
+              >
+                <InputNumber min={1} style={{ width: '100%' }} placeholder="例如 200" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="reason" label="备注（可选）">
+                <Input placeholder="如：充值200元补偿" />
+              </Form.Item>
+            </Col>
+            <Col span={2} style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <Button type="primary" htmlType="submit" loading={submitting} style={{ width: '100%' }}>
+                发放
+              </Button>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
+
+      {/* ---- 原汇总卡片 ---- */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={6}>
           <Card>
@@ -86,7 +159,7 @@ export default function UsageClient() {
         </Col>
       </Row>
 
-      {/* 各模型使用情况 */}
+      {/* ---- 各模型/用户使用情况 ---- */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={12}>
           <Card title="📈 各模型使用情况">
@@ -112,7 +185,7 @@ export default function UsageClient() {
         </Col>
       </Row>
 
-      {/* 最近使用记录 */}
+      {/* ---- 最近使用记录 ---- */}
       <Row gutter={[16, 16]}>
         <Col span={24}>
           <Card title="📋 最近使用记录（20条）">
