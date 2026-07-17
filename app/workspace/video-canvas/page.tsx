@@ -45,6 +45,7 @@ const VIDEO_MODELS = [
     durations: [5, 8, 10, 15], 
     aspectRatios: ['16:9', '9:16', '1:1'],
     maxDuration: 15,
+    resolutions: ['480p', '720p'],
     description: 'xAI 视频生成，支持长视频',
   },
   { 
@@ -53,6 +54,7 @@ const VIDEO_MODELS = [
     durations: [5, 8, 10, 15], 
     aspectRatios: ['16:9', '9:16', '1:1'],
     maxDuration: 15,
+    resolutions: ['480p', '720p', '1080p'],
     description: 'xAI 最新视频模型',
   },
    { 
