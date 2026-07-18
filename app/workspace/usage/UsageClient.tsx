@@ -46,10 +46,12 @@ export default function UsageClient() {
       if (data.success) {
         message.success(`✅ 成功为 ${values.phone} 增加 ${values.credits} 积分`);
         
-        // 🎯 如果被补偿的用户就是当前登录用户，更新全局积分
-        if (session?.user?.phone === values.phone) {
-          setCredits(data.newCredits);
-        }
+        // ✅ 重新从数据库获取当前用户的积分（确保同步）
+      const creditsRes = await fetch('/api/user/credits');
+      const creditsData = await creditsRes.json();
+      if (creditsData.credits !== undefined) {
+        setCredits(creditsData.credits); // 更新全局状态
+      }
 
         form.resetFields();
         // 刷新统计数据
