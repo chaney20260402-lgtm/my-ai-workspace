@@ -607,8 +607,19 @@ const executeWorkflow = async () => {
       )
     );
   } finally {
-    setProcessing(false);
+  setProcessing(false);
+  // ✅ 强制从数据库刷新最新积分
+  try {
+    const res = await fetch('/api/user/credits');
+    const data = await res.json();
+    if (data.credits !== undefined) {
+      setCredits(data.credits);
+    }
+  } catch (e) {
+    console.warn('刷新积分失败', e);
   }
+}
+
 };
 
 // ============================================================
