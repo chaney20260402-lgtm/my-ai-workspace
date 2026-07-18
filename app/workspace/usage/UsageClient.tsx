@@ -2,18 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Table, Spin, message, Typography, Button, Input, Form, InputNumber } from 'antd';
-import { useSession } from 'next-auth/react'; // 👈 ① 新增导入
+import { useSession } from 'next-auth/react';
+import { useCredits } from '@/app/contexts/CreditsContext'; // 👈 新增导入
 
 const { Title } = Typography;
 
 export default function UsageClient() {
-  const { data: session } = useSession(); // 👈 ② 获取 session
+  const { data: session } = useSession();
+  const { setCredits } = useCredits(); // 👈 获取 setCredits 方法
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
 
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
+  // 加载统计数据
   useEffect(() => {
     fetch('/api/usage/stats')
       .then(res => res.json())
@@ -27,7 +30,7 @@ export default function UsageClient() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 👇 ③ 修改 onFinishCompensation，增加 adminPhone 字段
+  // 积分补偿提交
   const onFinishCompensation = async (values: { phone: string; credits: number; reason?: string }) => {
     setSubmitting(true);
     try {
@@ -36,12 +39,18 @@ export default function UsageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...values,
-          adminPhone: session?.user?.phone, // 传递当前登录用户的手机号
+          adminPhone: session?.user?.phone, // 传递管理员手机号（即使不鉴权也保留）
         }),
       });
       const data = await res.json();
       if (data.success) {
         message.success(`✅ 成功为 ${values.phone} 增加 ${values.credits} 积分`);
+        
+        // 🎯 如果被补偿的用户就是当前登录用户，更新全局积分
+        if (session?.user?.phone === values.phone) {
+          setCredits(data.newCredits);
+        }
+
         form.resetFields();
         // 刷新统计数据
         const refreshRes = await fetch('/api/usage/stats');
