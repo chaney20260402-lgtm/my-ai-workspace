@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { checkUserCredits, checkAndDeductCredits } from '@/lib/credits';
+import { prisma } from '@/lib/prisma'; // ✅ 新增导入
 
 // ============================================================
 // ✅ 模型配置表（添加新模型）
@@ -43,12 +43,26 @@ export async function POST(request: Request) {
     }
 
     const userPhone = session.user.phone;
-
-    // ✅ 使用配置中的积分成本
     const cost = config.cost;
-    const hasEnough = await checkUserCredits(userPhone, cost);
-    if (!hasEnough) {
-      return NextResponse.json({ error: `积分不足，需要 ${cost} 积分` }, { status: 402 });
+
+    // ✅ 直接从数据库查询用户当前积分（不依赖 session 或缓存）
+    const user = await prisma.user.findUnique({
+      where: { phone: userPhone },
+      select: { credits: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    }
+
+    console.log(`📝 用户 ${userPhone} 当前积分: ${user.credits}，需要 ${cost}`);
+
+    // 检查积分是否充足
+    if (user.credits < cost) {
+      return NextResponse.json(
+        { error: `积分不足，需要 ${cost} 积分，当前 ${user.credits} 积分` },
+        { status: 402 }
+      );
     }
 
     const APIYI_KEY = process.env.APIYI_KEY;
@@ -93,8 +107,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // 扣除积分
-    await checkAndDeductCredits(userPhone, cost, `视频生成 (${model})`);
+    // ✅ 扣除积分（使用事务，直接从数据库扣减）
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      // 再次确认积分足够（防止并发）
+      const currentUser = await tx.user.findUnique({
+        where: { phone: userPhone },
+        select: { credits: true },
+      });
+
+      if (!currentUser || currentUser.credits < cost) {
+        throw new Error('积分不足');
+      }
+
+      const updated = await tx.user.update({
+        where: { phone: userPhone },
+        data: { credits: { decrement: cost } },
+        select: { credits: true },
+      });
+
+      // 记录积分交易
+      await tx.creditTransaction.create({
+        data: {
+          userPhone: userPhone,
+          amount: -cost,
+          type: 'generate',
+          description: `视频生成 (${model})`,
+        },
+      });
+
+      return updated;
+    });
+
+    console.log(`💰 积分扣除成功，剩余: ${updatedUser.credits}`);
 
     return NextResponse.json({
       success: true,
@@ -102,6 +146,8 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('提交视频生成任务失败:', error);
-    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+    return NextResponse.json({ 
+      error: error.message || '服务器错误' 
+    }, { status: 500 });
   }
 }
