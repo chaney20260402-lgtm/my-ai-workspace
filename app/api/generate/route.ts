@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { checkAndDeductCredits, checkUserCredits } from '@/lib/credits'; // ✅ 添加 checkUserCredits
+import { prisma } from '@/lib/prisma'; // ✅ 使用 Prisma
 import { createUsageLog } from '@/lib/usageLog';
 
 export const maxDuration = 60;
@@ -405,15 +405,24 @@ export async function POST(request: Request) {
     if (!config) {
       return NextResponse.json({ error: '不支持的模型' }, { status: 400 });
     }
-    // ✅ 积分检查（在调用 API 之前）
+
+    // ============================================================
+    // ✅ 积分检查（直接从数据库查询）
     // ============================================================
     const costPerImage = 8;
     const totalCost = costPerImage * quantity;
 
-    const hasEnoughCredits = await checkUserCredits(userPhone, totalCost);
-    if (!hasEnoughCredits) {
+    // 查询当前积分
+    const user = await prisma.user.findUnique({
+      where: { phone: userPhone },
+      select: { credits: true },
+    });
+    if (!user) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    }
+    if (user.credits < totalCost) {
       return NextResponse.json(
-        { error: '积分不足，请充值后再生成' },
+        { error: `积分不足，需要 ${totalCost} 积分，当前 ${user.credits} 积分` },
         { status: 402 }
       );
     }
@@ -422,13 +431,11 @@ export async function POST(request: Request) {
     const enhancedPrompt = buildEnhancedPrompt(prompt, platform, language);
     console.log(`📝 增强后提示词: ${enhancedPrompt.substring(0, 150)}...`);
 
-    
     const APIYI_KEY = process.env.APIYI_KEY;
     if (!APIYI_KEY) {
       console.error('❌ APIYI_KEY 未设置');
       return NextResponse.json({ error: '服务器配置错误' }, { status: 500 });
     }
-
 
     // 5. 调用 API（先不扣积分）
     const payload = config.buildPayload(enhancedPrompt, size, aspectRatio, referenceImages);
@@ -488,12 +495,39 @@ export async function POST(request: Request) {
     }
 
     // ============================================================
+    // ✅ 扣减积分（事务）
+    // ============================================================
     let newCredits: number;
-
     try {
-      // 扣积分
-      newCredits = await checkAndDeductCredits(userPhone, totalCost, `生成图片（${model}）`);
-      
+      const updatedUser = await prisma.$transaction(async (tx) => {
+        // 再次确认积分足够（防止并发）
+        const current = await tx.user.findUnique({
+          where: { phone: userPhone },
+          select: { credits: true },
+        });
+        if (!current || current.credits < totalCost) {
+          throw new Error('积分不足');
+        }
+
+        const updated = await tx.user.update({
+          where: { phone: userPhone },
+          data: { credits: { decrement: totalCost } },
+          select: { credits: true },
+        });
+
+        await tx.creditTransaction.create({
+          data: {
+            userPhone: userPhone,
+            amount: -totalCost,
+            type: 'generate',
+            description: `图片生成 (${model})`,
+          },
+        });
+
+        return updated;
+      });
+      newCredits = updatedUser.credits;
+
       // 记录使用日志
       await createUsageLog({
         userPhone: userPhone,
@@ -503,12 +537,12 @@ export async function POST(request: Request) {
         prompt: enhancedPrompt,
         success: true,
       });
-      
-    } catch (error: any) {
-      console.error('❌ 积分扣除失败:', error.message);
-      // 积分不足或扣费失败，返回 402 状态码
+
+    } catch (txError: any) {
+      console.error('❌ 积分扣除失败:', txError.message);
+      // 积分不足或扣费失败，返回 402
       return NextResponse.json(
-        { error: error.message || '积分不足，请充值' },
+        { error: txError.message || '积分不足，请充值' },
         { status: 402 }
       );
     }

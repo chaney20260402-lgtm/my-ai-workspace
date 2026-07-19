@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Replicate from 'replicate';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { checkAndDeductCredits } from '@/lib/credits';
+import { deductCredits } from '@/lib/credits';
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       newCredits = 100 - CREDITS_PER_LAYER;
     } else {
       try {
-        newCredits = await checkAndDeductCredits(userPhone, CREDITS_PER_LAYER, '拆解图层');
+        newCredits = await deductCredits(userPhone, CREDITS_PER_LAYER, '拆解图层', 'consume');
       } catch (error: any) {
         console.error('❌ 积分扣除失败:', error.message);
         return NextResponse.json(

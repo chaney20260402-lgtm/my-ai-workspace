@@ -1,128 +1,143 @@
 // lib/credits.ts
-import { getRedis } from './redis';
 import { prisma } from '@/lib/prisma';
 
 /**
- * 检查用户积分是否充足（基于 Redis）
+ * 获取用户当前积分（直接从数据库）
  */
-export async function checkUserCredits(userId: string, requiredCredits: number): Promise<boolean> {
-  const redis = getRedis();
-  const userKey = `user:${userId}`;
-  const credits = parseInt((await redis.get(userKey)) || '0');
-  return credits >= requiredCredits;
-}
-
-/**
- * 检查用户积分是否充足（基于数据库）
- */
-export async function checkUserCreditsFromDB(userPhone: string, requiredCredits: number): Promise<boolean> {
+export async function getUserCredits(phone: string): Promise<number> {
   const user = await prisma.user.findUnique({
-    where: { phone: userPhone },
+    where: { phone },
     select: { credits: true },
   });
-  
-  if (!user) return false;
-  return user.credits >= requiredCredits;
+  return user?.credits ?? 0;
 }
 
 /**
- * 扣除积分并记录变动
+ * 扣除积分（事务），返回新积分
+ * 如果积分不足，抛出错误
  */
-export async function checkAndDeductCredits(
-  userId: string,
-  cost: number,
-  reason?: string
+export async function deductCredits(
+  phone: string,
+  amount: number,
+  description: string,
+  type: string = 'consume'
 ): Promise<number> {
-  const redis = getRedis();
-  const userKey = `user:${userId}`;
-  const currentCredits = parseInt((await redis.get(userKey)) || '0');
+  if (amount <= 0) throw new Error('扣除积分必须为正数');
 
-  if (currentCredits < cost) {
-    throw new Error(`积分不足，当前积分 ${currentCredits}，需要 ${cost} 积分`);
-  }
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { phone },
+      select: { credits: true },
+    });
+    if (!user) throw new Error('用户不存在');
+    if (user.credits < amount) {
+      throw new Error(`积分不足，需要 ${amount}，当前 ${user.credits}`);
+    }
 
-  const newCredits = currentCredits - cost;
-  await redis.set(userKey, String(newCredits));
+    const updated = await tx.user.update({
+      where: { phone },
+      data: { credits: { decrement: amount } },
+      select: { credits: true },
+    });
 
-  const recordKey = `credit_records:${userId}`;
-  const record = JSON.stringify({
-    amount: -cost,
-    type: 'consume',
-    description: reason || `消耗 ${cost} 积分`,
-    createdAt: new Date().toISOString(),
+    await tx.creditTransaction.create({
+      data: {
+        userPhone: phone,
+        amount: -amount,
+        type: type,
+        description: description,
+      },
+    });
+
+    return updated.credits;
   });
-  await redis.lpush(recordKey, record);
-  await redis.ltrim(recordKey, 0, 99);
 
-  return newCredits;
+  return result;
 }
 
 /**
- * 增加积分并记录变动
+ * 增加积分（事务），返回新积分
  */
 export async function addCredits(
-  userId: string,
+  phone: string,
   amount: number,
-  reason?: string
+  description: string,
+  type: string = 'recharge'
 ): Promise<number> {
-  const redis = getRedis();
-  const userKey = `user:${userId}`;
-  const currentCredits = parseInt((await redis.get(userKey)) || '0');
-  const newCredits = currentCredits + amount;
-  await redis.set(userKey, String(newCredits));
+  if (amount <= 0) throw new Error('增加积分必须为正数');
 
-  const recordKey = `credit_records:${userId}`;
-  const record = JSON.stringify({
-    amount: amount,
-    type: 'recharge',
-    description: reason || `充值 ${amount} 积分`,
-    createdAt: new Date().toISOString(),
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { phone },
+      data: { credits: { increment: amount } },
+      select: { credits: true },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userPhone: phone,
+        amount: amount,
+        type: type,
+        description: description,
+      },
+    });
+
+    return updated.credits;
   });
-  await redis.lpush(recordKey, record);
-  await redis.ltrim(recordKey, 0, 99);
 
-  return newCredits;
+  return result;
 }
 
 /**
- * 获取用户当前积分
+ * 获取用户的积分变动记录（从数据库）
  */
-export async function getCredits(userId: string): Promise<number> {
-  const redis = getRedis();
-  const userKey = `user:${userId}`;
-  const credits = parseInt((await redis.get(userKey)) || '0');
-  return credits;
-}
-
-/**
- * 获取用户的积分变动记录（最近 N 条）
- */
-export async function getCreditRecords(userId: string, limit: number = 30): Promise<any[]> {
-  const redis = getRedis();
-  const recordKey = `credit_records:${userId}`;
-  try {
-    const records = await redis.lrange(recordKey, 0, limit - 1);
-    return records
-      .map((r) => {
-        try {
-          return JSON.parse(r);
-        } catch (e) {
-          console.error('解析积分记录失败，原始数据:', r, e);
-          return null;
-        }
-      })
-      .filter((item) => item !== null);
-  } catch (error) {
-    console.error('读取积分记录失败:', error);
-    return [];
-  }
+export async function getCreditRecords(phone: string, limit: number = 30) {
+  const records = await prisma.creditTransaction.findMany({
+    where: { userPhone: phone },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: {
+      id: true,
+      amount: true,
+      type: true,
+      description: true,
+      createdAt: true,
+    },
+  });
+  return records.map(r => ({
+    ...r,
+    balance: 0,
+  }));
 }
 
 // ============================================================
-// ✅ 重新导出视频积分计算函数（从 video-credits.ts）
+// ✅ 保留纯计算函数（不涉及存储）
 // ============================================================
 export { 
   VIDEO_RATES, 
   getVideoRates, 
   calculateVideoCredits 
 } from './video-credits';
+
+// ============================================================
+// ⚠️ 以下旧函数已废弃，仅保留作为兼容过渡，请尽快替换
+// ============================================================
+export async function checkUserCredits(userId: string, requiredCredits: number): Promise<boolean> {
+  console.warn('⚠️ checkUserCredits 已废弃，请使用 getUserCredits');
+  const credits = await getUserCredits(userId);
+  return credits >= requiredCredits;
+}
+
+export async function checkAndDeductCredits(
+  userId: string,
+  cost: number,
+  reason?: string
+): Promise<number> {
+  console.warn('⚠️ checkAndDeductCredits 已废弃，请使用 deductCredits');
+  return deductCredits(userId, cost, reason || '消耗积分', 'consume');
+}
+
+export async function getCredits(userId: string): Promise<number> {
+  console.warn('⚠️ getCredits 已废弃，请使用 getUserCredits');
+  return getUserCredits(userId);
+}

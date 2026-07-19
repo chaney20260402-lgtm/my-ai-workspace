@@ -2,8 +2,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { checkAndDeductCredits, calculateVideoCredits, getCredits } from '@/lib/credits';
+import { getUserCredits, deductCredits } from '@/lib/credits'; // 改用新函数
 import { getRedis } from '@/lib/redis';
+import { calculateVideoCredits } from '@/lib/credits'; // 此函数如果是纯计算，保留
 
 export async function GET(request: Request) {
   try {
@@ -23,16 +24,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: '服务器配置错误' }, { status: 500 });
     }
 
-    // 查询 Grok 视频状态
+    // 查询 Grok 状态
     const response = await fetch(`https://api.x.ai/v1/videos/${generationId}`, {
-      headers: {
-        'Authorization': `Bearer ${XAI_API_KEY}`,
-      },
+      headers: { 'Authorization': `Bearer ${XAI_API_KEY}` },
     });
-
     const data = await response.json();
-
-    console.log('📥 Grok 状态响应:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       return NextResponse.json(
@@ -45,22 +41,18 @@ export async function GET(request: Request) {
     const videoUrl = data.video?.url || null;
     const progress = data.progress || 0;
 
-    // ============================================================
-    // ✅ 如果任务完成且有视频 URL，扣除积分（仅一次）
-    // ============================================================
-    let credits = null;
-    let deductError = null;
+    let credits: number | null = null;
+    let deductError: string | null = null;
+    const userPhone = session.user.phone;
 
     if (status === 'done' && videoUrl) {
-      const userPhone = session.user.phone;
       const redis = getRedis();
       const paidKey = `video:paid:${generationId}`;
-
-      // 检查是否已扣过积分
       const alreadyPaid = await redis.get(paidKey);
+
       if (!alreadyPaid) {
         try {
-          // 从 Redis 读取提交时存储的参数
+          // 获取提交时存储的参数
           const paramsKey = `video:params:${generationId}`;
           const paramsStr = await redis.get(paramsKey);
           let params = { model: 'grok-imagine-video', resolution: '720p', duration: 5, imageCount: 0 };
@@ -68,32 +60,41 @@ export async function GET(request: Request) {
             params = JSON.parse(paramsStr);
           }
 
-          // 计算所需积分
           const requiredCredits = calculateVideoCredits(params.model, params.resolution, params.duration, params.imageCount);
           if (requiredCredits > 0) {
-            // 扣除积分
-            const newCredits = await checkAndDeductCredits(userPhone, requiredCredits, `Grok 视频生成 (${params.model})`);
-            credits = newCredits;
-            // 标记已扣，24小时过期
+            // ✅ 使用新函数扣除积分
+            credits = await deductCredits(
+              userPhone,
+              requiredCredits,
+              `Grok 视频生成 (${params.model})`,
+              'generate'
+            );
             await redis.set(paidKey, '1', 'EX', 86400);
-            console.log(`✅ 扣除积分 ${requiredCredits}，剩余 ${newCredits}`);
+            console.log(`✅ 扣除积分 ${requiredCredits}，剩余 ${credits}`);
+          } else {
+            credits = await getUserCredits(userPhone);
           }
         } catch (error: any) {
           console.error('❌ 积分扣除失败:', error);
           deductError = error.message;
+          // 即使扣分失败，仍返回状态，但标记错误
+          credits = await getUserCredits(userPhone); // 尝试获取当前积分
         }
       } else {
-        // 已扣过积分，获取当前积分
-        credits = await getCredits(userPhone);
+        // 已扣过，获取当前积分
+        credits = await getUserCredits(userPhone);
       }
+    } else {
+      // 任务未完成，返回当前积分（可能用于显示）
+      credits = await getUserCredits(userPhone);
     }
 
     return NextResponse.json({
       success: true,
-      status: status,
-      videoUrl: videoUrl,
-      progress: progress,
-      credits: credits,
+      status,
+      videoUrl,
+      progress,
+      credits,
       error: deductError,
     });
   } catch (error: any) {
