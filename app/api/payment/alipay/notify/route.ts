@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     console.log('📥 收到支付宝回调:', params);
 
     // ============================================================
-    // 手动验签（替代 alipay-sdk 的 checkNotifySign）
+    // 手动验签
     // ============================================================
     const alipayPublicKey = process.env.ALIPAY_PUBLIC_KEY!;
     const sign = params.sign;
@@ -24,12 +24,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '签名缺失' }, { status: 400 });
     }
 
-    // 移除 sign 和 sign_type
     const verifyParams = { ...params };
     delete verifyParams.sign;
     delete verifyParams.sign_type;
 
-    // 按参数名排序并拼接
     const sortedKeys = Object.keys(verifyParams).sort();
     const signStr = sortedKeys
       .map(key => `${key}=${verifyParams[key]}`)
@@ -50,7 +48,6 @@ export async function POST(request: NextRequest) {
     }
     console.log('✅ 签名验证通过');
 
-    // 后续逻辑不变：判断交易状态、处理订单、更新积分和会员...
     const tradeStatus = params.trade_status;
     if (tradeStatus !== 'TRADE_SUCCESS' && tradeStatus !== 'TRADE_FINISHED') {
       console.log(`⏳ 交易状态: ${tradeStatus}，非成功状态，忽略`);
@@ -72,8 +69,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'success' });
     }
     const order = JSON.parse(orderData);
-    
-    // ===== 新增：打印订单详情 =====
+
+    // ===== 打印订单详情 =====
     console.log(`📊 订单详情:`, order);
     console.log(`📊 订单积分: ${order.credits}`);
 
@@ -86,7 +83,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'success' });
     }
 
-    // ===== 新增：打印用户当前积分 =====
     console.log(`📊 用户当前积分: ${user.credits}`);
 
     const newCredits = (user.credits || 0) + order.credits;
@@ -105,7 +101,18 @@ export async function POST(request: NextRequest) {
     });
     console.log(`✅ 更新后用户:`, updatedUser);
 
-    // 更新 Redis
+    // ✅ 新增：将充值记录写入 PostgreSQL 的 CreditTransaction 表（用于个人中心显示）
+    await prisma.creditTransaction.create({
+      data: {
+        userPhone: order.userId,
+        amount: order.credits,
+        type: 'recharge',
+        description: `支付宝充值 ${order.credits} 积分 ${order.membershipType ? `+ 会员 ${order.membershipType}` : ''}`,
+      },
+    });
+    console.log(`📝 充值记录已写入 PostgreSQL CreditTransaction 表`);
+
+    // 更新 Redis（保留兼容）
     await redis.set(`user:${order.userId}`, String(newCredits));
 
     const recordKey = `credit_records:${order.userId}`;
