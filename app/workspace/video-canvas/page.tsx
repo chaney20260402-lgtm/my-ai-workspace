@@ -32,7 +32,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import { useCredits } from '@/app/contexts/CreditsContext';
 import AnimatedEdge from './edges/AnimatedEdge';
 import { calculateVideoCredits } from '@/lib/video-credits';
-import { put } from '@vercel/blob';  // 确保顶部有这一行导入
+import { put } from '@vercel/blob';  // ✅ 直传 Blob
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -152,18 +152,30 @@ const TextInputNode = ({ data }: { data: any }) => {
   );
 };
 
+// ✅ 多图节点显示
 const ImageNode = ({ data }: { data: any }) => {
+  const imageUrls = data.imageUrls || [];
+  const displayImages = imageUrls.slice(0, 4);
+  const remaining = imageUrls.length - 4;
+
   return (
-    <div style={{ padding: '10px 14px', background: '#fff', border: '2px solid #52c41a', borderRadius: 8, minWidth: 120, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+    <div style={{ padding: '10px 14px', background: '#fff', border: '2px solid #52c41a', borderRadius: 8, minWidth: 140, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
       <Handle type="source" position={Position.Right} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <FileImageOutlined style={{ color: '#52c41a' }} />
         <strong>图片参考</strong>
+        <Tag color="blue">{imageUrls.length}张</Tag>
       </div>
-      {data.imageUrl && (
-        <img src={data.imageUrl} alt="参考图" style={{ width: 80, height: 80, objectFit: 'cover', marginTop: 4, borderRadius: 4 }} />
-      )}
-      {!data.imageUrl && <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>上传图片</div>}
+      <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+        {displayImages.map((url: string, idx: number) => (
+          <img key={idx} src={url} alt={`参考图${idx+1}`} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
+        ))}
+        {remaining > 0 && (
+          <div style={{ width: 40, height: 40, background: '#f0f0f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#999' }}>
+            +{remaining}
+          </div>
+        )}
+      </div>
       {data.prompt && (
         <div style={{ fontSize: 12, color: '#666', marginTop: 4, wordBreak: 'break-all' }}>
           📝 {data.prompt.substring(0, 30)}...
@@ -279,7 +291,6 @@ export default function VideoCanvas() {
         aspectRatio: selectedAspectRatio,
         resolution: selectedResolution,
       };
-      // 只更新 data，不触发重新渲染循环
       setNodes((nds) =>
         nds.map((node) =>
           node.id === selectedNode.id ? { ...node, data: updatedData } : node
@@ -307,7 +318,6 @@ export default function VideoCanvas() {
     if (models.length > 0 && !models.some(m => m.value === selectedModel)) {
       setSelectedModel(models[0].value);
     }
-    // 分辨率也要检查是否支持
     const resolutions = getResolutionsByModel(selectedModel);
     if (!resolutions.includes(selectedResolution)) {
       setSelectedResolution(resolutions[0]);
@@ -316,13 +326,12 @@ export default function VideoCanvas() {
 
   // 计算所需积分（用于顶部显示）
   const imageCount = useMemo(() => {
-    // 检查当前选中的视频生成节点是否有图片
     if (selectedNode && selectedNode.type === 'videoGen') {
       const connectedEdges = edges.filter(e => e.target === selectedNode.id);
       for (const edge of connectedEdges) {
         const sourceNode = nodes.find(n => n.id === edge.source);
-        if (sourceNode && sourceNode.type === 'imageInput' && sourceNode.data.imageUrl) {
-          return 1;
+        if (sourceNode && sourceNode.type === 'imageInput' && sourceNode.data.imageUrls?.length) {
+          return sourceNode.data.imageUrls.length;
         }
       }
     }
@@ -338,7 +347,6 @@ export default function VideoCanvas() {
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedNode(node);
     form.setFieldsValue(node.data);
-    // 自动打开抽屉
     if (node.type === 'videoGen' || node.type === 'textInput' || node.type === 'imageInput') {
       setDrawerOpen(true);
     }
@@ -358,7 +366,6 @@ export default function VideoCanvas() {
     };
     setNodes((nds) => nds.concat(newNode));
     setSelectedNode(newNode);
-    // 视频生成节点自动打开抽屉
     if (type === 'videoGen') {
       setDrawerOpen(true);
       form.setFieldsValue(newNode.data);
@@ -376,7 +383,6 @@ export default function VideoCanvas() {
           message.warning(`模型 ${model.label} 不支持 ${values.duration}秒时长`);
           return;
         }
-        // 同步更新顶部工具栏状态
         setSelectedModel(values.model);
         setSelectedDuration(values.duration);
         setSelectedAspectRatio(values.aspectRatio || selectedAspectRatio);
@@ -400,426 +406,446 @@ export default function VideoCanvas() {
     message.success('已删除节点');
   };
 
-const handleImageUpload = async (file: File) => {
-  setUploading(true);
-  try {
-    // 直接上传到 Vercel Blob（无大小限制）
-    const blob = await put(`${Date.now()}-${file.name}`, file, {
-      access: 'public',
-      token: process.env.NEXT_PUBLIC_BLOB_READ_WRITE_TOKEN,
-    });
+  // ✅ 多图上传（追加）
+  const handleImageUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const blob = await put(`${Date.now()}-${file.name}`, file, {
+        access: 'public',
+        token: process.env.NEXT_PUBLIC_BLOB_READ_WRITE_TOKEN,
+      });
 
-    if (blob.url) {
-      if (selectedNode) {
+      if (blob.url && selectedNode) {
+        const currentUrls = selectedNode.data.imageUrls || [];
+        if (currentUrls.length >= 9) {
+          message.warning('最多支持 9 张图片');
+          return;
+        }
+        const updatedUrls = [...currentUrls, blob.url];
         setNodes((nds) =>
           nds.map((node) =>
             node.id === selectedNode.id
-              ? { ...node, data: { ...node.data, imageUrl: blob.url } }
+              ? { ...node, data: { ...node.data, imageUrls: updatedUrls } }
               : node
           )
         );
-        message.success('图片上传成功！✅');
+        message.success(`已上传 ${updatedUrls.length} 张`);
       }
-      setDrawerOpen(false);
-    } else {
-      message.error('上传失败，未获取到URL');
+    } catch (error) {
+      console.error('上传失败:', error);
+      message.error('图片上传失败');
+    } finally {
+      setUploading(false);
     }
-  } catch (error) {
-    console.error('上传失败:', error);
-    message.error('图片上传失败，请重试');
-  } finally {
-    setUploading(false);
-  }
+  };
+
+  // ✅ 删除单张图片
+  const removeImage = (index: number) => {
+  if (!selectedNode) return;
+  const currentUrls: string[] = selectedNode.data.imageUrls || [];
+  const updatedUrls = currentUrls.filter((_url: string, i: number) => i !== index);
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === selectedNode.id
+        ? { ...node, data: { ...node.data, imageUrls: updatedUrls } }
+        : node
+    )
+  );
+  message.info('已删除该图片');
 };
 
-// ============================================================
-// 执行工作流（使用顶部工具栏的配置）
-// ============================================================
-const executeWorkflow = async () => {
-  const genNodes = nodes.filter(n => n.type === 'videoGen');
-  if (genNodes.length === 0) {
-    message.warning('画布上没有视频生成节点');
-    return;
-  }
+  // ============================================================
+  // 执行工作流（使用顶部工具栏的配置）
+  // ============================================================
+  const executeWorkflow = async () => {
+    const genNodes = nodes.filter(n => n.type === 'videoGen');
+    if (genNodes.length === 0) {
+      message.warning('画布上没有视频生成节点');
+      return;
+    }
 
-  const targetNode = genNodes.find(n => n.data.status !== 'completed');
-  if (!targetNode) {
-    message.info('所有视频生成任务已完成');
-    return;
-  }
+    const targetNode = genNodes.find(n => n.data.status !== 'completed');
+    if (!targetNode) {
+      message.info('所有视频生成任务已完成');
+      return;
+    }
 
-  const connectedEdges = edges.filter(e => e.target === targetNode.id);
-  let prompt = '';
-  let imageUrl = '';
+    const connectedEdges = edges.filter(e => e.target === targetNode.id);
+    let prompt = '';
+    let imageUrl = '';
+    const allImageUrls: string[] = [];
 
-  console.log('🔍 ===== 开始获取节点数据 =====');
-  console.log('🔍 连接到目标节点的边数:', connectedEdges.length);
-  
-  for (const edge of connectedEdges) {
-    console.log('🔍 边缘:', edge);
-    const sourceNode = nodes.find(n => n.id === edge.source);
-    console.log('🔍 源节点:', sourceNode);
+    console.log('🔍 ===== 开始获取节点数据 =====');
+    console.log('🔍 连接到目标节点的边数:', connectedEdges.length);
     
-    if (sourceNode) {
-      console.log('🔍 节点类型:', sourceNode.type);
-      console.log('🔍 节点数据:', sourceNode.data);
+    for (const edge of connectedEdges) {
+      console.log('🔍 边缘:', edge);
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      console.log('🔍 源节点:', sourceNode);
       
-      if (sourceNode.type === 'textInput') {
-        prompt = sourceNode.data.prompt || '';
-        console.log('🔍 从文本节点获取 prompt:', prompt);
-      } else if (sourceNode.type === 'imageInput') {
-        imageUrl = sourceNode.data.imageUrl || '';
-        console.log('🔍 从图片节点获取 imageUrl:', imageUrl);
-        console.log('🔍 imageUrl 长度:', imageUrl.length);
-        console.log('🔍 是否以 https:// 开头:', imageUrl.startsWith('https://'));
-        console.log('🔍 是否包含 public.blob.vercel-storage.com:', imageUrl.includes('public.blob.vercel-storage.com'));
+      if (sourceNode) {
+        console.log('🔍 节点类型:', sourceNode.type);
+        console.log('🔍 节点数据:', sourceNode.data);
         
-        if (sourceNode.data.prompt && !prompt) {
+        if (sourceNode.type === 'textInput') {
           prompt = sourceNode.data.prompt || '';
-          console.log('🔍 从图片节点获取 prompt:', prompt);
+          console.log('🔍 从文本节点获取 prompt:', prompt);
+        } else if (sourceNode.type === 'imageInput') {
+          // ✅ 收集所有图片 URL
+          const urls = sourceNode.data.imageUrls || [];
+          allImageUrls.push(...urls);
+          if (urls.length > 0) {
+            imageUrl = urls[0];  // 兼容旧字段
+          }
+          console.log('🔍 从图片节点获取 imageUrls:', urls);
+          
+          if (sourceNode.data.prompt && !prompt) {
+            prompt = sourceNode.data.prompt || '';
+            console.log('🔍 从图片节点获取 prompt:', prompt);
+          }
         }
       }
     }
-  }
 
-  console.log('🔍 ===== 最终获取到的数据 =====');
-  console.log('  - prompt:', prompt);
-  console.log('  - imageUrl:', imageUrl);
-  console.log('  - imageUrl 是否为空:', !imageUrl);
-  console.log('  - imageUrl 是否以 https:// 开头:', imageUrl?.startsWith('https://'));
+    console.log('🔍 ===== 最终获取到的数据 =====');
+    console.log('  - prompt:', prompt);
+    console.log('  - imageUrl:', imageUrl);
+    console.log('  - allImageUrls:', allImageUrls);
+    console.log('  - imageUrl 是否为空:', !imageUrl);
 
-  const isGrokPureText = selectedModel === 'grok-imagine-video';
-  const isGrokImage = selectedModel === 'grok-imagine-video-1.5-preview';
-  const isVeo = selectedModel.startsWith('veo');
+    const isGrokPureText = selectedModel === 'grok-imagine-video';
+    const isGrokImage = selectedModel === 'grok-imagine-video-1.5-preview';
+    const isVeo = selectedModel.startsWith('veo');
 
-  if ((isGrokPureText || isGrokImage) && imageUrl && !prompt) {
-    const imageNode = nodes.find(n => n.type === 'imageInput' && n.data.imageUrl === imageUrl);
-    if (imageNode?.data.prompt) {
-      prompt = imageNode.data.prompt;
-      console.log('✅ 从图片节点获取描述:', prompt);
+    if ((isGrokPureText || isGrokImage) && imageUrl && !prompt) {
+      const imageNode = nodes.find(n => n.type === 'imageInput' && n.data.imageUrls?.includes(imageUrl));
+      if (imageNode?.data.prompt) {
+        prompt = imageNode.data.prompt;
+        console.log('✅ 从图片节点获取描述:', prompt);
+      }
     }
-  }
 
-  if (isGrokPureText) {
-    if (!prompt) {
-      message.warning('请填写提示词（文字节点或图片节点的描述）');
-      return;
+    if (isGrokPureText) {
+      if (!prompt) {
+        message.warning('请填写提示词（文字节点或图片节点的描述）');
+        return;
+      }
+      console.log('🔵 Grok 纯文本模式，无需图片');
     }
-    console.log('🔵 Grok 纯文本模式，无需图片');
-  }
 
-  if (isGrokImage) {
-    if (!prompt) {
-      message.warning('请填写提示词（文字节点或图片节点的描述）');
-      return;
+    if (isGrokImage) {
+      if (!prompt) {
+        message.warning('请填写提示词（文字节点或图片节点的描述）');
+        return;
+      }
+      if (!imageUrl) {
+        message.warning('Grok Imagine 1.5 需要提供参考图片，请连接图片节点');
+        return;
+      }
+      if (!imageUrl.startsWith('https://')) {
+        console.warn('⚠️ imageUrl 不是 HTTPS URL:', imageUrl);
+        message.warning('图片 URL 格式不正确，请重新上传图片');
+        return;
+      }
+      console.log('🟣 Grok 图生视频模式，图片已准备:', imageUrl);
     }
-    if (!imageUrl) {
-      message.warning('Grok Imagine 1.5 需要提供参考图片，请连接图片节点');
-      return;
+
+    if (isVeo) {
+      if (!prompt) {
+        message.warning('请填写提示词');
+        return;
+      }
+      console.log('🟢 Veo 模式，纯文本');
     }
-    if (!imageUrl.startsWith('https://')) {
-      console.warn('⚠️ imageUrl 不是 HTTPS URL:', imageUrl);
-      message.warning('图片 URL 格式不正确，请重新上传图片');
-      return;
-    }
-    console.log('🟣 Grok 图生视频模式，图片已准备:', imageUrl);
-  }
 
-  if (isVeo) {
-    if (!prompt) {
-      message.warning('请填写提示词');
-      return;
-    }
-    console.log('🟢 Veo 模式，纯文本');
-  }
+    console.log('🔍 工作流参数:');
+    console.log('  - prompt:', prompt);
+    console.log('  - imageUrl:', imageUrl);
+    console.log('  - allImageUrls:', allImageUrls);
+    console.log('  - selectedModel:', selectedModel);
+    console.log('  - selectedResolution:', selectedResolution);
 
-  console.log('🔍 工作流参数:');
-  console.log('  - prompt:', prompt);
-  console.log('  - imageUrl:', imageUrl);
-  console.log('  - selectedModel:', selectedModel);
-  console.log('  - selectedResolution:', selectedResolution);
+    setProcessing(true);
+    try {
+      const isGrok = selectedModel.startsWith('grok');
+      const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
 
-  setProcessing(true);
-  try {
-    const isGrok = selectedModel.startsWith('grok');
-    const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
+        )
+      );
 
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
-      )
-    );
-
-    console.log('🔵 正在调用 API:', apiEndpoint);
-    console.log('🔵 请求体:', { prompt, imageUrl, model: selectedModel, duration: selectedDuration, resolution: selectedResolution });
-
-    const res = await fetch(apiEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      // ✅ 请求体包含 imageUrls
+      const requestBody = {
         prompt,
         imageUrl,
+        imageUrls: allImageUrls,   // 新增字段
         model: selectedModel,
         duration: selectedDuration,
         aspectRatio: selectedAspectRatio,
         resolution: selectedResolution,
-      }),
-    });
+      };
 
-    console.log('🔵 API 响应状态:', res.status);
+      console.log('🔵 正在调用 API:', apiEndpoint);
+      console.log('🔵 请求体:', requestBody);
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error('❌ API 响应错误:', res.status, text);
-      let errorMsg = `请求失败 (${res.status})`;
+      const res = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('🔵 API 响应状态:', res.status);
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('❌ API 响应错误:', res.status, text);
+        let errorMsg = `请求失败 (${res.status})`;
+        try {
+          const errorData = JSON.parse(text);
+          errorMsg = errorData.error || errorData.message || errorMsg;
+        } catch {
+          if (text) errorMsg = text;
+        }
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '提交失败');
+      }
+
+      console.log('✅ API 调用成功，generationId:', data.generationId);
+
+      const generationId = data.generationId;
+      message.info(`任务已提交，ID: ${generationId}`);
+
+      if (isGrok) {
+        await pollGrokResult(generationId, targetNode.id, targetNode.position);
+      } else {
+        await pollVideoResult(generationId, targetNode.id, targetNode.position);
+      }
+
+    } catch (error: any) {
+      console.error('❌ 执行工作流失败:', error);
+      message.error(error.message || '生成失败');
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
+        )
+      );
+    } finally {
+      setProcessing(false);
+      // 强制刷新积分
       try {
-        const errorData = JSON.parse(text);
-        errorMsg = errorData.error || errorData.message || errorMsg;
-      } catch {
-        if (text) errorMsg = text;
+        const res = await fetch('/api/user/credits');
+        const data = await res.json();
+        if (data.credits !== undefined) {
+          setCredits(data.credits);
+        }
+      } catch (e) {
+        console.warn('刷新积分失败', e);
       }
-      throw new Error(errorMsg);
     }
+  };
 
-    const data = await res.json();
+  // ============================================================
+  // pollVideoResult（API 易轮询）
+  // ============================================================
+  const pollVideoResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
+    let attempts = 0;
+    const maxAttempts = 60;
 
-    if (!data.success) {
-      throw new Error(data.error || '提交失败');
-    }
+    const poll = async () => {
+      attempts++;
+      console.log(`🔵 轮询第 ${attempts} 次，generationId: ${generationId}`);
 
-    console.log('✅ API 调用成功，generationId:', data.generationId);
+      try {
+        const res = await fetch(`/api/video/status?generationId=${generationId}`);
+        const data = await res.json();
 
-    const generationId = data.generationId;
-    message.info(`任务已提交，ID: ${generationId}`);
+        console.log(`📥 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
 
-    if (isGrok) {
-      await pollGrokResult(generationId, targetNode.id, targetNode.position);
-    } else {
-      await pollVideoResult(generationId, targetNode.id, targetNode.position);
-    }
-
-  } catch (error: any) {
-    console.error('❌ 执行工作流失败:', error);
-    message.error(error.message || '生成失败');
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'failed' } } : node
-      )
-    );
-  } finally {
-  setProcessing(false);
-  // ✅ 强制从数据库刷新最新积分
-  try {
-    const res = await fetch('/api/user/credits');
-    const data = await res.json();
-    if (data.credits !== undefined) {
-      setCredits(data.credits);
-    }
-  } catch (e) {
-    console.warn('刷新积分失败', e);
-  }
-}
-
-};
-
-// ============================================================
-// pollVideoResult（API 易轮询）
-// ============================================================
-const pollVideoResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
-  let attempts = 0;
-  const maxAttempts = 60;
-
-  const poll = async () => {
-    attempts++;
-    console.log(`🔵 轮询第 ${attempts} 次，generationId: ${generationId}`);
-
-    try {
-      const res = await fetch(`/api/video/status?generationId=${generationId}`);
-      const data = await res.json();
-
-      console.log(`📥 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
-
-      if (data.status === 'completed' || data.status === 'succeeded') {
-        const videoUrl = data.videoUrl || data.video_url || null;
-        if (videoUrl) {
-          if (data.credits !== undefined) {
-            setCredits(data.credits);
+        if (data.status === 'completed' || data.status === 'succeeded') {
+          const videoUrl = data.videoUrl || data.video_url || null;
+          if (videoUrl) {
+            if (data.credits !== undefined) {
+              setCredits(data.credits);
+            }
+            setNodes((nds) =>
+              nds.map((node) =>
+                node.id === nodeId
+                  ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
+                  : node
+              )
+            );
+            const previewNodeId = `preview-${Date.now()}`;
+            const previewNode: Node = {
+              id: previewNodeId,
+              type: 'videoPreview',
+              position: { x: targetPos.x + 200, y: targetPos.y + 50 },
+              data: { videoUrl: videoUrl },
+            };
+            setNodes((nds) => nds.concat(previewNode));
+            const newEdge: Edge = {
+              id: `edge-${nodeId}-${previewNodeId}`,
+              source: nodeId,
+              target: previewNodeId,
+              animated: true,
+            };
+            setEdges((eds) => eds.concat(newEdge));
+            message.success('🎬 视频生成成功！');
+            console.log(`✅ 视频 URL: ${videoUrl}`);
+            return;
+          } else {
+            console.warn('⚠️ 状态为 completed 但 videoUrl 为空');
+            message.warning('视频生成完成，但未获取到视频链接');
+            return;
           }
-          // 更新生成节点
+        }
+
+        if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
+          if (attempts < maxAttempts) {
+            console.log(`⏳ 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
+            setTimeout(poll, 5000);
+          } else {
+            message.error('生成超时，请稍后刷新查看');
+          }
+          return;
+        }
+
+        if (data.status === 'failed') {
+          const errorMsg = data.error || '视频生成失败';
+          console.error(`❌ 生成失败: ${errorMsg}`);
+          message.error(errorMsg);
           setNodes((nds) =>
             nds.map((node) =>
-              node.id === nodeId
-                ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
-                : node
+              node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
             )
           );
-          // 创建预览节点并添加边
-          const previewNodeId = `preview-${Date.now()}`;
-          const previewNode: Node = {
-            id: previewNodeId,
-            type: 'videoPreview',
-            position: { x: targetPos.x + 200, y: targetPos.y + 50 },
-            data: { videoUrl: videoUrl },
-          };
-          setNodes((nds) => nds.concat(previewNode));
-          // 添加边
-          const newEdge: Edge = {
-            id: `edge-${nodeId}-${previewNodeId}`,
-            source: nodeId,
-            target: previewNodeId,
-            animated: true,
-          };
-          setEdges((eds) => eds.concat(newEdge));
-          message.success('🎬 视频生成成功！');
-          console.log(`✅ 视频 URL: ${videoUrl}`);
-          return;
-        } else {
-          console.warn('⚠️ 状态为 completed 但 videoUrl 为空');
-          message.warning('视频生成完成，但未获取到视频链接');
           return;
         }
-      }
 
-      if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
         if (attempts < maxAttempts) {
-          console.log(`⏳ 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
+          console.log(`⏳ 未知状态 (${data.status})，继续轮询...`);
           setTimeout(poll, 5000);
         } else {
-          message.error('生成超时，请稍后刷新查看');
+          message.error('生成超时');
         }
-        return;
-      }
 
-      if (data.status === 'failed') {
-        const errorMsg = data.error || '视频生成失败';
-        console.error(`❌ 生成失败: ${errorMsg}`);
-        message.error(errorMsg);
+      } catch (error: any) {
+        console.error('❌ 轮询错误:', error);
+        message.error(error.message || '轮询失败');
         setNodes((nds) =>
           nds.map((node) =>
             node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
           )
         );
-        return;
       }
+    };
 
-      if (attempts < maxAttempts) {
-        console.log(`⏳ 未知状态 (${data.status})，继续轮询...`);
-        setTimeout(poll, 5000);
-      } else {
-        message.error('生成超时');
-      }
-
-    } catch (error: any) {
-      console.error('❌ 轮询错误:', error);
-      message.error(error.message || '轮询失败');
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
-        )
-      );
-    }
+    await poll();
   };
 
-  await poll();
-};
+  // ============================================================
+  // pollGrokResult（Grok 轮询）
+  // ============================================================
+  const pollGrokResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
+    let attempts = 0;
+    const maxAttempts = 60;
 
-// ============================================================
-// pollGrokResult（Grok 轮询）
-// ============================================================
-const pollGrokResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
-  let attempts = 0;
-  const maxAttempts = 60;
+    const poll = async () => {
+      attempts++;
+      console.log(`🔵 Grok 轮询第 ${attempts} 次，generationId: ${generationId}`);
 
-  const poll = async () => {
-    attempts++;
-    console.log(`🔵 Grok 轮询第 ${attempts} 次，generationId: ${generationId}`);
+      try {
+        const res = await fetch(`/api/video/grok/status?generationId=${generationId}`);
+        const data = await res.json();
 
-    try {
-      const res = await fetch(`/api/video/grok/status?generationId=${generationId}`);
-      const data = await res.json();
+        console.log(`📥 Grok 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
 
-      console.log(`📥 Grok 轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
-
-      if (data.status === 'done' || data.status === 'completed' || data.status === 'succeeded') {
-        const videoUrl = data.videoUrl || data.video?.url || null;
-        if (videoUrl) {
-          if (data.credits !== undefined) {
-            setCredits(data.credits);
+        if (data.status === 'done' || data.status === 'completed' || data.status === 'succeeded') {
+          const videoUrl = data.videoUrl || data.video?.url || null;
+          if (videoUrl) {
+            if (data.credits !== undefined) {
+              setCredits(data.credits);
+            }
+            setNodes((nds) =>
+              nds.map((node) =>
+                node.id === nodeId
+                  ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
+                  : node
+              )
+            );
+            const previewNodeId = `preview-${Date.now()}`;
+            const previewNode: Node = {
+              id: previewNodeId,
+              type: 'videoPreview',
+              position: { x: targetPos.x + 200, y: targetPos.y + 50 },
+              data: { videoUrl: videoUrl },
+            };
+            setNodes((nds) => nds.concat(previewNode));
+            const newEdge: Edge = {
+              id: `edge-${nodeId}-${previewNodeId}`,
+              source: nodeId,
+              target: previewNodeId,
+              animated: true,
+            };
+            setEdges((eds) => eds.concat(newEdge));
+            message.success('🎬 Grok 视频生成成功！');
+            console.log(`✅ Grok 视频 URL: ${videoUrl}`);
+            return;
+          } else {
+            console.warn('⚠️ Grok 状态为 done 但 videoUrl 为空');
+            message.warning('视频生成完成，但未获取到视频链接');
+            return;
           }
+        }
+
+        if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
+          if (attempts < maxAttempts) {
+            console.log(`⏳ Grok 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
+            setTimeout(poll, 5000);
+          } else {
+            message.error('Grok 生成超时，请稍后刷新查看');
+          }
+          return;
+        }
+
+        if (data.status === 'failed' || data.status === 'expired') {
+          const errorMsg = data.error || 'Grok 视频生成失败';
+          console.error(`❌ Grok 生成失败: ${errorMsg}`);
+          message.error(errorMsg);
           setNodes((nds) =>
             nds.map((node) =>
-              node.id === nodeId
-                ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
-                : node
+              node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
             )
           );
-          const previewNodeId = `preview-${Date.now()}`;
-          const previewNode: Node = {
-            id: previewNodeId,
-            type: 'videoPreview',
-            position: { x: targetPos.x + 200, y: targetPos.y + 50 },
-            data: { videoUrl: videoUrl },
-          };
-          setNodes((nds) => nds.concat(previewNode));
-          const newEdge: Edge = {
-            id: `edge-${nodeId}-${previewNodeId}`,
-            source: nodeId,
-            target: previewNodeId,
-            animated: true,
-          };
-          setEdges((eds) => eds.concat(newEdge));
-          message.success('🎬 Grok 视频生成成功！');
-          console.log(`✅ Grok 视频 URL: ${videoUrl}`);
-          return;
-        } else {
-          console.warn('⚠️ Grok 状态为 done 但 videoUrl 为空');
-          message.warning('视频生成完成，但未获取到视频链接');
           return;
         }
-      }
 
-      if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
         if (attempts < maxAttempts) {
-          console.log(`⏳ Grok 视频生成中 (${data.progress || 0}%)，5秒后继续...`);
+          console.log(`⏳ Grok 未知状态 (${data.status})，继续轮询...`);
           setTimeout(poll, 5000);
         } else {
-          message.error('Grok 生成超时，请稍后刷新查看');
+          message.error('Grok 生成超时');
         }
-        return;
-      }
 
-      if (data.status === 'failed' || data.status === 'expired') {
-        const errorMsg = data.error || 'Grok 视频生成失败';
-        console.error(`❌ Grok 生成失败: ${errorMsg}`);
-        message.error(errorMsg);
+      } catch (error: any) {
+        console.error('❌ Grok 轮询错误:', error);
+        message.error(error.message || '轮询失败');
         setNodes((nds) =>
           nds.map((node) =>
             node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
           )
         );
-        return;
       }
+    };
 
-      if (attempts < maxAttempts) {
-        console.log(`⏳ Grok 未知状态 (${data.status})，继续轮询...`);
-        setTimeout(poll, 5000);
-      } else {
-        message.error('Grok 生成超时');
-      }
-
-    } catch (error: any) {
-      console.error('❌ Grok 轮询错误:', error);
-      message.error(error.message || '轮询失败');
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
-        )
-      );
-    }
+    await poll();
   };
-
-  await poll();
-};
 
   const onDrawerClose = () => {
     setDrawerOpen(false);
@@ -900,7 +926,6 @@ const pollGrokResult = async (generationId: string, nodeId: string, targetPos: {
             ))}
           </Select>
 
-          {/* 积分显示 */}
           <Tag color="gold" style={{ fontSize: 13, fontWeight: 600 }}>
             💰 {requiredCredits} 积分
           </Tag>
@@ -969,20 +994,39 @@ const pollGrokResult = async (generationId: string, nodeId: string, targetPos: {
                 <Form.Item name="prompt" label="图片描述（用于视频生成）">
                   <Input.TextArea 
                     rows={3} 
-                    placeholder="请输入这张图片的描述，如：一只猫在花园里奔跑，阳光明媚，高清" 
+                    placeholder="请输入这些图片的整体描述..." 
                   />
                 </Form.Item>
-                <Form.Item name="imageUrl" label="图片URL">
-                  <Input placeholder="输入图片URL（或上传图片自动获取）" />
-                </Form.Item>
-                <Form.Item label="上传图片">
+                {/* ✅ 多图显示与操作 */}
+                <Form.Item label="已上传图片（最多9张）">
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {(selectedNode.data.imageUrls || []).map((url: string, idx: number) => (
+                      <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                        <img src={url} alt={`图${idx+1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4 }} />
+                        <Button
+                          size="small"
+                          danger
+                          shape="circle"
+                          icon={<DeleteOutlined />}
+                          style={{ position: 'absolute', top: -8, right: -8 }}
+                          onClick={() => removeImage(idx)}
+                        />
+                      </div>
+                    ))}
+                  </div>
                   <Upload
                     accept="image/*"
                     beforeUpload={handleImageUpload}
                     showUploadList={false}
+                    multiple
                   >
-                    <Button loading={uploading}>上传图片</Button>
+                    <Button loading={uploading} disabled={(selectedNode.data.imageUrls || []).length >= 9}>
+                      + 继续添加图片
+                    </Button>
                   </Upload>
+                  <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+                    已上传 {(selectedNode.data.imageUrls || []).length} / 9 张
+                  </div>
                 </Form.Item>
               </>
             )}
