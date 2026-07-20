@@ -32,6 +32,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import { useCredits } from '@/app/contexts/CreditsContext';
 import AnimatedEdge from './edges/AnimatedEdge';
 import { calculateVideoCredits } from '@/lib/video-credits';
+import { put } from '@vercel/blob';  // 确保顶部有这一行导入
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -399,31 +400,21 @@ export default function VideoCanvas() {
     message.success('已删除节点');
   };
 
- const handleImageUpload = async (file: File) => {
+const handleImageUpload = async (file: File) => {
   setUploading(true);
   try {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // 如果文件大于 5MB，使用新的大文件上传 API
-    const apiPath = file.size > 5 * 1024 * 1024
-      ? '/api/upload-large'
-      : `/api/upload?filename=${Date.now()}-${file.name}`;
-
-    const res = await fetch(apiPath, {
-      method: 'POST',
-      body: formData,
+    // 直接上传到 Vercel Blob（无大小限制）
+    const blob = await put(`${Date.now()}-${file.name}`, file, {
+      access: 'public',
+      token: process.env.NEXT_PUBLIC_BLOB_READ_WRITE_TOKEN,
     });
 
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || '上传失败');
-
-    if (data.url) {
+    if (blob.url) {
       if (selectedNode) {
         setNodes((nds) =>
           nds.map((node) =>
             node.id === selectedNode.id
-              ? { ...node, data: { ...node.data, imageUrl: data.url } }
+              ? { ...node, data: { ...node.data, imageUrl: blob.url } }
               : node
           )
         );
