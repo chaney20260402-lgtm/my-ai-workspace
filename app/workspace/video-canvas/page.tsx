@@ -402,13 +402,23 @@ export default function VideoCanvas() {
  const handleImageUpload = async (file: File) => {
   setUploading(true);
   try {
-    const res = await fetch(`/api/upload?filename=${Date.now()}-${file.name}`, {
-      method: 'POST',
-      body: file,
-    });
-    const data = await res.json();
+    const formData = new FormData();
+    formData.append('file', file);
 
-    if (data.success && data.url) {
+    // 如果文件大于 5MB，使用新的大文件上传 API
+    const apiPath = file.size > 5 * 1024 * 1024
+      ? '/api/upload-large'
+      : `/api/upload?filename=${Date.now()}-${file.name}`;
+
+    const res = await fetch(apiPath, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || '上传失败');
+
+    if (data.url) {
       if (selectedNode) {
         setNodes((nds) =>
           nds.map((node) =>
@@ -418,15 +428,14 @@ export default function VideoCanvas() {
           )
         );
         message.success('图片上传成功！✅');
-        console.log('✅ 上传的图片 URL:', data.url);
       }
       setDrawerOpen(false);
     } else {
-      message.error(data.error || '上传失败');
+      message.error('上传失败，未获取到URL');
     }
   } catch (error) {
     console.error('上传失败:', error);
-    message.error('图片上传失败');
+    message.error('图片上传失败，请重试');
   } finally {
     setUploading(false);
   }
