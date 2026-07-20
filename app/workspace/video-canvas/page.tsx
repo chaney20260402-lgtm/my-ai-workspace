@@ -380,29 +380,89 @@ export default function VideoCanvas() {
 };
 
   const onSaveNode = () => {
-    if (!selectedNode) return;
-    const values = form.getFieldsValue();
-    if (selectedNode.type === 'videoGen') {
-      if (values.duration && values.model) {
-        const model = VIDEO_MODELS.find(m => m.value === values.model);
-        if (model && !model.durations.includes(values.duration)) {
-          message.warning(`模型 ${model.label} 不支持 ${values.duration}秒时长`);
-          return;
-        }
-        setSelectedModel(values.model);
-        setSelectedDuration(values.duration);
-        setSelectedAspectRatio(values.aspectRatio || selectedAspectRatio);
-        setSelectedResolution(values.resolution || selectedResolution);
+  if (!selectedNode) return;
+  const values = form.getFieldsValue();
+  
+  // 1. 更新当前节点数据
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === selectedNode.id ? { ...node, data: { ...node.data, ...values } } : node
+    )
+  );
+
+  // ✅ 2. 如果是文本或图片节点，自动创建视频节点并连接（如果尚未连接）
+  if (selectedNode.type === 'textInput' || selectedNode.type === 'imageInput') {
+    // 检查是否已有连接
+    const existingEdge = edges.find(e => e.source === selectedNode.id);
+    if (!existingEdge) {
+      // 创建视频节点
+      const videoNodeId = `videoGen-${Date.now()}`;
+      const videoNode: Node = {
+        id: videoNodeId,
+        type: 'videoGen',
+        position: {
+          x: selectedNode.position.x + 250,
+          y: selectedNode.position.y,
+        },
+        data: {
+          model: selectedModel,
+          duration: selectedDuration,
+          aspectRatio: selectedAspectRatio,
+          resolution: selectedResolution,
+          status: 'idle',
+        },
+      };
+      
+      // 创建连接边（带动画）
+      const newEdge: Edge = {
+        id: `edge-${selectedNode.id}-${videoNodeId}`,
+        source: selectedNode.id,
+        target: videoNodeId,
+        animated: true,  // ✅ 电流流动效果
+      };
+
+      // 更新状态（添加节点和边，并选中视频节点）
+      setNodes((nds) => [...nds, videoNode]);
+      setEdges((eds) => [...eds, newEdge]);
+      
+      // 选中视频节点，打开配置抽屉
+      setTimeout(() => {
+        setSelectedNode(videoNode);
+        form.setFieldsValue(videoNode.data);
+        setDrawerOpen(true);
+      }, 100);
+      
+      message.success('已自动创建视频生成节点，请配置参数');
+    } else {
+      // 已有视频节点，直接打开它的配置
+      const targetNodeId = existingEdge.target;
+      const videoNode = nodes.find(n => n.id === targetNodeId);
+      if (videoNode) {
+        setSelectedNode(videoNode);
+        form.setFieldsValue(videoNode.data);
+        setDrawerOpen(true);
       }
     }
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === selectedNode.id ? { ...node, data: { ...node.data, ...values } } : node
-      )
-    );
-    setDrawerOpen(false);
-    message.success('节点配置已保存');
-  };
+  }
+
+  // 3. 视频节点保存逻辑（原有）
+  if (selectedNode.type === 'videoGen') {
+    if (values.duration && values.model) {
+      const model = VIDEO_MODELS.find(m => m.value === values.model);
+      if (model && !model.durations.includes(values.duration)) {
+        message.warning(`模型 ${model.label} 不支持 ${values.duration}秒时长`);
+        return;
+      }
+      setSelectedModel(values.model);
+      setSelectedDuration(values.duration);
+      setSelectedAspectRatio(values.aspectRatio || selectedAspectRatio);
+      setSelectedResolution(values.resolution || selectedResolution);
+    }
+  }
+
+  setDrawerOpen(false);
+  message.success('节点配置已保存');
+};
 
   const onDeleteNode = () => {
     if (!selectedNode) return;
@@ -981,20 +1041,22 @@ export default function VideoCanvas() {
 
       {/* 节点属性抽屉 */}
       <Drawer
-        title="节点属性"
-        open={drawerOpen}
-        onClose={onDrawerClose}
-        width={420}
-        extra={
-          <Space>
-            {selectedNode && selectedNode.type !== 'videoPreview' && (
-              <Button danger icon={<DeleteOutlined />} onClick={onDeleteNode}>删除</Button>
-            )}
-            <Button onClick={onDrawerClose}>取消</Button>
-            <Button type="primary" onClick={onSaveNode}>保存</Button>
-          </Space>
-        }
-      >
+  title="节点属性"
+  open={drawerOpen}
+  onClose={onDrawerClose}
+  width={420}
+  extra={
+    <Space>
+      {selectedNode && (
+        <Button danger icon={<DeleteOutlined />} onClick={onDeleteNode}>
+          删除
+        </Button>
+      )}
+      <Button onClick={onDrawerClose}>取消</Button>
+      <Button type="primary" onClick={onSaveNode}>保存</Button>
+    </Space>
+  }
+>
         {selectedNode && (
           <Form form={form} layout="vertical" initialValues={selectedNode.data}>
             {selectedNode.type === 'textInput' && (
