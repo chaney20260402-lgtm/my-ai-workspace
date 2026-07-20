@@ -2,13 +2,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 
-const PLANS: Record<string, { name: string; price: number; credits: number }> = {
-  plan_basic: { name: '体验会员', price: 0, credits: 100 },
-  plan_pro: { name: '进阶会员', price: 200, credits: 1500 },
-  plan_enterprise: { name: '专业会员', price: 1000, credits: 7500 },
-  recharge_1000: { name: '1000积分', price: 200, credits: 1000},
-  recharge_5000: { name: '5000积分', price: 800, credits: 5000 },
-  recharge_10000: { name: '10000积分', price: 1500, credits: 10000 },
+type PlanConfig = {
+  name: string;
+  price: number;
+  credits: number;
+  membershipType?: string | null;
+};
+
+const PLANS: Record<string, PlanConfig> = {
+  // --- 原有套餐（补充 membershipType）---
+  plan_basic: {
+    name: '体验会员',
+    price: 0,
+    credits: 100,
+    membershipType: null,
+  },
+  plan_pro: {
+    name: '进阶会员',
+    price: 200,
+    credits: 1500,
+    membershipType: 'advanced',
+  },
+  plan_enterprise: {
+    name: '专业会员',
+    price: 1000,
+    credits: 7500,
+    membershipType: 'professional',
+  },
+  recharge_1000: {
+    name: '1000积分',
+    price: 200,
+    credits: 1000,
+    membershipType: null,
+  },
+  recharge_5000: {
+    name: '5000积分',
+    price: 800,
+    credits: 5000,
+    membershipType: null,
+  },
+  recharge_10000: {
+    name: '10000积分',
+    price: 1500,
+    credits: 10000,
+    membershipType: null,
+  },
+
+  // --- 新增测试套餐 ---
+  plan_test_membership: {
+    name: '测试会员',
+    price: 0.99,
+    credits: 100,
+    membershipType: 'test_member',
+  },
+  recharge_test_credits: {
+    name: '测试积分包',
+    price: 0.99,
+    credits: 100,
+    membershipType: null,
+  },
 };
 
 export async function POST(req: NextRequest) {
@@ -31,16 +83,20 @@ export async function POST(req: NextRequest) {
     const subject = plan.name;
 
     const redis = getRedis();
-    await redis.setex(`order:${orderId}`, 3600, JSON.stringify({
+
+    // ✅ 存储订单时包含 membershipType
+    const orderData = {
       userId,
       planId,
       amount,
       credits: plan.credits,
+      membershipType: plan.membershipType || null,
       status: 'pending',
       createdAt: new Date().toISOString(),
-    }));
+    };
+    await redis.setex(`order:${orderId}`, 3600, JSON.stringify(orderData));
 
-    console.log(`📦 订单创建成功: ${orderId}, 用户: ${userId}, 积分: ${plan.credits}`);
+    console.log(`📦 订单创建成功: ${orderId}, 用户: ${userId}, 积分: ${plan.credits}, 会员类型: ${orderData.membershipType}`);
 
     return NextResponse.json({
       success: true,
