@@ -408,36 +408,42 @@ export default function VideoCanvas() {
 
   // ✅ 多图上传（追加）
   const handleImageUpload = async (file: File) => {
-    setUploading(true);
-    try {
-      const blob = await put(`${Date.now()}-${file.name}`, file, {
-        access: 'public',
-        token: process.env.NEXT_PUBLIC_BLOB_READ_WRITE_TOKEN,
-      });
+  setUploading(true);
+  try {
+    const blob = await put(`${Date.now()}-${file.name}`, file, {
+      access: 'public',
+      token: process.env.NEXT_PUBLIC_BLOB_READ_WRITE_TOKEN,
+    });
 
-      if (blob.url && selectedNode) {
-        const currentUrls = selectedNode.data.imageUrls || [];
-        if (currentUrls.length >= 9) {
-          message.warning('最多支持 9 张图片');
-          return;
-        }
-        const updatedUrls = [...currentUrls, blob.url];
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === selectedNode.id
-              ? { ...node, data: { ...node.data, imageUrls: updatedUrls } }
-              : node
-          )
-        );
-        message.success(`已上传 ${updatedUrls.length} 张`);
+    if (blob.url && selectedNode) {
+      // ✅ 从 nodes 中获取最新的节点数据（避免闭包问题）
+      const currentNode = nodes.find(n => n.id === selectedNode.id);
+      if (!currentNode) {
+        message.error('节点不存在');
+        return;
       }
-    } catch (error) {
-      console.error('上传失败:', error);
-      message.error('图片上传失败');
-    } finally {
-      setUploading(false);
+      const currentUrls = currentNode.data.imageUrls || [];
+      if (currentUrls.length >= 9) {
+        message.warning('最多支持 9 张图片');
+        return;
+      }
+      const updatedUrls = [...currentUrls, blob.url];
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === selectedNode.id
+            ? { ...node, data: { ...node.data, imageUrls: updatedUrls } }
+            : node
+        )
+      );
+      message.success(`已上传 ${updatedUrls.length} 张`);
     }
-  };
+  } catch (error) {
+    console.error('上传失败:', error);
+    message.error('图片上传失败');
+  } finally {
+    setUploading(false);
+  }
+};
 
   // ✅ 删除单张图片
   const removeImage = (index: number) => {
