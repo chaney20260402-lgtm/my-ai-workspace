@@ -72,6 +72,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'success' });
     }
     const order = JSON.parse(orderData);
+    
+    // ===== 新增：打印订单详情 =====
+    console.log(`📊 订单详情:`, order);
+    console.log(`📊 订单积分: ${order.credits}`);
 
     // 更新用户积分和会员类型
     const user = await prisma.user.findUnique({
@@ -81,6 +85,9 @@ export async function POST(request: NextRequest) {
       console.error(`❌ 用户 ${order.userId} 不存在`);
       return NextResponse.json({ message: 'success' });
     }
+
+    // ===== 新增：打印用户当前积分 =====
+    console.log(`📊 用户当前积分: ${user.credits}`);
 
     const newCredits = (user.credits || 0) + order.credits;
     let newMembershipType = user.membershipType || 'experience';
