@@ -65,22 +65,6 @@ const membershipPlans = [
     color: '#fff7e6',
     buttonColor: '#faad14',
   },
-  {
-  id: 'plan_test_membership',
-  name: '测试会员',
-  price: 0.99,
-  currency: '¥',
-  period: '',
-  icon: <StarOutlined style={{ fontSize: 24, color: '#faad14' }} />,
-  credits: 100,
-  features: [
-    '测试专用，支付 0.99 元得 100 积分',
-    '会员类型变为 "test_member"',
-    '验证会员类型同步更新',
-  ],
-  color: '#f0f2f5',
-  buttonColor: '#1890ff',
-},
 ];
 
 // 积分充值套餐
@@ -88,7 +72,6 @@ const creditPlans = [
   { id: 'recharge_1000', amount: 200, credits: 1000 },
   { id: 'recharge_5000', amount: 800, credits: 5000 },
   { id: 'recharge_10000', amount: 1500, credits: 10000 },
-  { id: 'recharge_test_credits', amount: 0.99, credits: 100 }, // ✅ 新增
 ];
 
 export default function PricingPage() {

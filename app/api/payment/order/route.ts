@@ -47,20 +47,6 @@ const PLANS: Record<string, PlanConfig> = {
     credits: 10000,
     membershipType: null,
   },
-
-  // --- 新增测试套餐 ---
-  plan_test_membership: {
-    name: '测试会员',
-    price: 0.99,
-    credits: 100,
-    membershipType: 'test_member',
-  },
-  recharge_test_credits: {
-    name: '测试积分包',
-    price: 0.99,
-    credits: 100,
-    membershipType: null,
-  },
 };
 
 export async function POST(req: NextRequest) {
