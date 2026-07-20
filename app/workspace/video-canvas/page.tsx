@@ -345,12 +345,10 @@ export default function VideoCanvas() {
   const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    setSelectedNode(node);
-    form.setFieldsValue(node.data);
-    if (node.type === 'videoGen' || node.type === 'textInput' || node.type === 'imageInput') {
-      setDrawerOpen(true);
-    }
-  }, [form]);
+  setSelectedNode(node);
+  form.setFieldsValue(node.data);
+  setDrawerOpen(true);  // ✅ 所有节点都打开抽屉
+}, [form]);
 
   const addNode = (type: string) => {
   let initialData = {};
