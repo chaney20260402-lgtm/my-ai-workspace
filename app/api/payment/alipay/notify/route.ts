@@ -88,13 +88,15 @@ export async function POST(request: NextRequest) {
       newMembershipType = order.membershipType;
     }
 
-    await prisma.user.update({
+    console.log(`🔄 准备更新用户: phone=${order.userId}, 新积分=${newCredits}, 新会员=${newMembershipType}`);
+    const updatedUser = await prisma.user.update({
       where: { phone: order.userId },
       data: {
         credits: newCredits,
         membershipType: newMembershipType,
       },
     });
+    console.log(`✅ 更新后用户:`, updatedUser);
 
     // 更新 Redis
     await redis.set(`user:${order.userId}`, String(newCredits));
