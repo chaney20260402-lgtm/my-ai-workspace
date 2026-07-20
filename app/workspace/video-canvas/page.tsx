@@ -353,25 +353,31 @@ export default function VideoCanvas() {
   }, [form]);
 
   const addNode = (type: string) => {
-    const newNode: Node = {
-      id: `${type}-${Date.now()}`,
-      type,
-      position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
-      data: type === 'videoGen' ? { 
-        model: selectedModel, 
-        duration: selectedDuration, 
-        aspectRatio: selectedAspectRatio,
-        resolution: selectedResolution,
-      } : {},
+  let initialData = {};
+  if (type === 'videoGen') {
+    initialData = {
+      model: selectedModel,
+      duration: selectedDuration,
+      aspectRatio: selectedAspectRatio,
+      resolution: selectedResolution,
     };
-    setNodes((nds) => nds.concat(newNode));
-    setSelectedNode(newNode);
-    if (type === 'videoGen') {
-      setDrawerOpen(true);
-      form.setFieldsValue(newNode.data);
-    }
-    message.success(`已添加 ${type === 'textInput' ? '文本输入' : type === 'imageInput' ? '图片参考' : type === 'videoGen' ? '视频生成' : '预览'} 节点`);
+  } else if (type === 'imageInput') {
+    initialData = { imageUrls: [] };  // ✅ 关键：初始化空数组
+  }
+  const newNode: Node = {
+    id: `${type}-${Date.now()}`,
+    type,
+    position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
+    data: initialData,
   };
+  setNodes((nds) => nds.concat(newNode));
+  setSelectedNode(newNode);
+  if (type === 'videoGen') {
+    setDrawerOpen(true);
+    form.setFieldsValue(newNode.data);
+  }
+  message.success(`已添加 ${type === 'textInput' ? '文本输入' : type === 'imageInput' ? '图片参考' : type === 'videoGen' ? '视频生成' : '预览'} 节点`);
+};
 
   const onSaveNode = () => {
     if (!selectedNode) return;
@@ -416,16 +422,16 @@ export default function VideoCanvas() {
     });
 
     if (blob.url && selectedNode) {
-      // ✅ 从 nodes 中获取最新的节点数据（避免闭包问题）
+      // ✅ 从 nodes 中获取最新数据
       const currentNode = nodes.find(n => n.id === selectedNode.id);
       if (!currentNode) {
         message.error('节点不存在');
-        return;
+        return false;
       }
       const currentUrls = currentNode.data.imageUrls || [];
       if (currentUrls.length >= 9) {
         message.warning('最多支持 9 张图片');
-        return;
+        return false;
       }
       const updatedUrls = [...currentUrls, blob.url];
       setNodes((nds) =>
@@ -443,8 +449,9 @@ export default function VideoCanvas() {
   } finally {
     setUploading(false);
   }
+  // ✅ 关键：阻止 Ant Design Upload 默认提交
+  return false;
 };
-
   // ✅ 删除单张图片
   const removeImage = (index: number) => {
   if (!selectedNode) return;
