@@ -2,8 +2,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma'; // ✅ 使用 Prisma
+import { prisma } from '@/lib/prisma';
 import { createUsageLog } from '@/lib/usageLog';
+import { put } from '@vercel/blob'; // ✅ 新增
 
 export const maxDuration = 60;
 
@@ -412,7 +413,6 @@ export async function POST(request: Request) {
     const costPerImage = 8;
     const totalCost = costPerImage * quantity;
 
-    // 查询当前积分
     const user = await prisma.user.findUnique({
       where: { phone: userPhone },
       select: { credits: true },
@@ -444,7 +444,7 @@ export async function POST(request: Request) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-    let imageUrl: string | null = null;
+    let imageBase64: string | null = null;
     let apiError: any = null;
 
     try {
@@ -469,10 +469,12 @@ export async function POST(request: Request) {
         const data = await response.json();
         console.log(`📥 API 响应状态: ${response.status}`);
         console.log(`📥 API 响应数据:`, JSON.stringify(data, null, 2));
-        imageUrl = config.extractImage(data);
-        if (!imageUrl) {
+        const extracted = config.extractImage(data);
+        if (!extracted) {
           console.error('❌ 未提取到图片:', data);
           apiError = new Error('生成失败，未返回图片');
+        } else {
+          imageBase64 = extracted; // 例如 data:image/png;base64,...
         }
       }
     } catch (fetchError: any) {
@@ -495,12 +497,41 @@ export async function POST(request: Request) {
     }
 
     // ============================================================
+    // ✅ 将 base64 图片上传到 Vercel Blob，获得 URL
+    // ============================================================
+    let finalImageUrl: string;
+    try {
+      // 从 data:image/png;base64,xxxx 中提取纯 base64
+      const matches = imageBase64!.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (!matches) {
+        throw new Error('无效的图片数据');
+      }
+      const mimeType = `image/${matches[1]}`;
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      const blob = await put(
+        `generated-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${matches[1]}`,
+        buffer,
+        {
+          access: 'public',
+          contentType: mimeType,
+        }
+      );
+      finalImageUrl = blob.url;
+      console.log(`✅ 图片上传到 Blob: ${finalImageUrl}`);
+    } catch (uploadError: any) {
+      console.error('❌ 上传到 Blob 失败:', uploadError);
+      // 如果上传失败，降级返回 base64（但可能导致响应过大）
+      finalImageUrl = imageBase64!;
+    }
+
+    // ============================================================
     // ✅ 扣减积分（事务）
     // ============================================================
     let newCredits: number;
     try {
       const updatedUser = await prisma.$transaction(async (tx) => {
-        // 再次确认积分足够（防止并发）
         const current = await tx.user.findUnique({
           where: { phone: userPhone },
           select: { credits: true },
@@ -540,7 +571,6 @@ export async function POST(request: Request) {
 
     } catch (txError: any) {
       console.error('❌ 积分扣除失败:', txError.message);
-      // 积分不足或扣费失败，返回 402
       return NextResponse.json(
         { error: txError.message || '积分不足，请充值' },
         { status: 402 }
@@ -548,11 +578,11 @@ export async function POST(request: Request) {
     }
 
     console.log(`💰 当前剩余积分: ${newCredits}`);
-    console.log(`✅ 生成成功，图片长度: ${imageUrl!.length}`);
+    console.log(`✅ 生成成功，图片 URL: ${finalImageUrl}`);
 
     return NextResponse.json({
       success: true,
-      imageUrl: imageUrl!,
+      imageUrl: finalImageUrl,  // ✅ 返回 URL（或 base64 降级）
       credits: newCredits,
     });
   } catch (error: any) {
