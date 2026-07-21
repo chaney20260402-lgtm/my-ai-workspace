@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage,Tag, Space } from 'antd';
-import { DeleteOutlined, FilePdfOutlined,  PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Card, Spin, message, Row, Col, Divider, Image as AntImage, Tag, Space } from 'antd';
+import { DeleteOutlined, FilePdfOutlined, PlusOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import JSZip from 'jszip';
 import { useCredits } from '@/app/contexts/CreditsContext';
 import LoadingProgressModal from './LoadingProgressModal';
@@ -10,6 +10,7 @@ import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 import { StarOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { Modal } from 'antd';
 import { useRouter } from 'next/navigation';
+import { put } from '@vercel/blob'; // ✅ 导入直传 Blob
 
 const { TextArea } = Input;
 
@@ -18,7 +19,7 @@ interface ImageGeneratorProps {
   initialModel?: string;
   initialSize?: string;
   initialAspectRatio?: string;
-  membershipType?: string; // ✅ 新增
+  membershipType?: string;
   initialImages?: GeneratedImage[];
   onGenerateSuccess?: (imageUrl: string) => void;
   onPromptChange?: (prompt: string) => void;
@@ -99,12 +100,11 @@ const providerIcons: Record<string, React.ReactNode> = {
   seedream: <ExperimentOutlined style={{ fontSize: 18, color: '#8b5cf6' }} />,
   wan: <ExperimentOutlined style={{ fontSize: 18, color: '#06b6d4' }} />,
   midjourney: <ExperimentOutlined style={{ fontSize: 18, color: '#ec4899' }} />,
-  // ✅ 新增 flux 图标
-  flux: <ExperimentOutlined style={{ fontSize: 18, color: '#a78bfa' }} />, // 紫色
+  flux: <ExperimentOutlined style={{ fontSize: 18, color: '#a78bfa' }} />,
   default: <StarOutlined style={{ fontSize: 18 }} />,
 };
+
 const modelOptions = [
-  // ✅ 保留可用的
   { 
     value: 'nanobanana-pro', 
     label: (
@@ -115,23 +115,23 @@ const modelOptions = [
     )
   },
   { 
-  value: 'nano-banana', 
-  label: (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {providerIcons.banana}
-      Nano Banana
-    </span>
-  )
-},
-{ 
-  value: 'nano-banana-2', 
-  label: (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {providerIcons.banana}
-      Nano Banana 2
-    </span>
-  )
-},
+    value: 'nano-banana', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.banana}
+        Nano Banana
+      </span>
+    )
+  },
+  { 
+    value: 'nano-banana-2', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.banana}
+        Nano Banana 2
+      </span>
+    )
+  },
   { 
     value: 'gpt-image-2', 
     label: (
@@ -142,14 +142,14 @@ const modelOptions = [
     )
   },
   { 
-  value: 'gpt-image-2-all', 
-  label: (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {providerIcons.openai}
-      GPT Image 2 All
-    </span>
-  )
-},
+    value: 'gpt-image-2-all', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.openai}
+        GPT Image 2 All
+      </span>
+    )
+  },
   { 
     value: 'gemini-3-pro-image-preview', 
     label: (
@@ -169,35 +169,33 @@ const modelOptions = [
     )
   },
   { 
-  value: 'flux-2-pro', 
-  label: (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {providerIcons.flux}
-      Flux 2 Pro
-    </span>
-  )
-},
-  // ✅ 新增可用模型（按照 API 易列表）
+    value: 'flux-2-pro', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.flux}
+        Flux 2 Pro
+      </span>
+    )
+  },
   { 
-  value: 'flux-2-max', 
-  label: (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {providerIcons.flux}
-      Flux 2 Max
-    </span>
-  )
-},
-{ 
-  value: 'flux-2-flex', 
-  label: (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {providerIcons.flux}
-      Flux 2 Flex
-    </span>
-  )
-},
-]
-
+    value: 'flux-2-max', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.flux}
+        Flux 2 Max
+      </span>
+    )
+  },
+  { 
+    value: 'flux-2-flex', 
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {providerIcons.flux}
+        Flux 2 Flex
+      </span>
+    )
+  },
+];
 
 export default function ImageGenerator({
   initialPrompt = '',
@@ -217,11 +215,10 @@ export default function ImageGenerator({
   onLanguageChange,
   onPromptsChange,
   onReferenceImagesChange,
-  membershipType = 'experience', // ✅ 新增
+  membershipType = 'experience',
 }: ImageGeneratorProps) {
   const { setCredits } = useCredits();
-  const router = useRouter(); // ✅ 新增
-
+  const router = useRouter();
 
   const [model, setModel] = useState(initialModel);
   const [size, setSize] = useState(initialSize);
@@ -229,33 +226,28 @@ export default function ImageGenerator({
   const [platform, setPlatform] = useState('taobao');
   const [language, setLanguage] = useState('zh');
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
-
-  
   const [quantity, setQuantity] = useState(1);
   const [prompts, setPrompts] = useState<string[]>([initialPrompt || '']);
-  
   const [loading, setLoading] = useState(false);
   const [progressVisible, setProgressVisible] = useState(false);
   const [progressTitle, setProgressTitle] = useState('');
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>(initialImages);
-  // 移除了 history 和 showHistory
 
   // 当数量变化时，调整prompts数组长度
   useEffect(() => {
-  setPrompts(prev => {
-    const newPrompts = [...prev];
-    while (newPrompts.length < quantity) {
-      newPrompts.push('');
-    }
-    const result = newPrompts.slice(0, quantity);
-    if (onPromptsChange) {
-      onPromptsChange(result);
-    }
-    return result;
-  });
-}, [quantity]);
+    setPrompts(prev => {
+      const newPrompts = [...prev];
+      while (newPrompts.length < quantity) {
+        newPrompts.push('');
+      }
+      const result = newPrompts.slice(0, quantity);
+      if (onPromptsChange) {
+        onPromptsChange(result);
+      }
+      return result;
+    });
+  }, [quantity]);
 
-  // 当 initialPrompt 变化时，更新第一个提示词
   useEffect(() => {
     if (initialPrompt && prompts[0] !== initialPrompt) {
       setPrompts(prev => {
@@ -266,83 +258,88 @@ export default function ImageGenerator({
     }
   }, [initialPrompt]);
 
-  // 提示词变化时通知父组件
   useEffect(() => {
     if (onPromptChange && prompts.length > 0 && prompts[0] !== undefined) {
       onPromptChange(prompts[0]);
     }
   }, [prompts, onPromptChange]);
+
   useEffect(() => {
-  if (onModelChange) onModelChange(model);
-}, [model, onModelChange]);
+    if (onModelChange) onModelChange(model);
+  }, [model, onModelChange]);
 
-useEffect(() => {
-  if (onSizeChange) onSizeChange(size);
-}, [size, onSizeChange]);
+  useEffect(() => {
+    if (onSizeChange) onSizeChange(size);
+  }, [size, onSizeChange]);
 
-useEffect(() => {
-  if (onAspectRatioChange) onAspectRatioChange(aspectRatio);
-}, [aspectRatio, onAspectRatioChange]);
+  useEffect(() => {
+    if (onAspectRatioChange) onAspectRatioChange(aspectRatio);
+  }, [aspectRatio, onAspectRatioChange]);
 
-useEffect(() => {
-  if (onPlatformChange) onPlatformChange(platform);
-}, [platform, onPlatformChange]);
+  useEffect(() => {
+    if (onPlatformChange) onPlatformChange(platform);
+  }, [platform, onPlatformChange]);
 
-useEffect(() => {
-  if (onLanguageChange) onLanguageChange(language);
-}, [language, onLanguageChange]);
+  useEffect(() => {
+    if (onLanguageChange) onLanguageChange(language);
+  }, [language, onLanguageChange]);
 
+  useEffect(() => {
+    if (initialPrompts && initialPrompts.length > 0) {
+      setPrompts(initialPrompts);
+    }
+  }, [initialPrompts]);
 
-// 2️⃣ 初始化外部数据：当父组件传入新数据时同步更新
-useEffect(() => {
-  if (initialPrompts && initialPrompts.length > 0) {
-    setPrompts(initialPrompts);
-  }
-}, [initialPrompts]);
-
-useEffect(() => {
-  if (initialReferenceImages) {
-    setReferenceImages(initialReferenceImages);
-  }
-}, [initialReferenceImages]);
+  useEffect(() => {
+    if (initialReferenceImages) {
+      setReferenceImages(initialReferenceImages);
+    }
+  }, [initialReferenceImages]);
 
   const updatePrompt = (index: number, value: string) => {
-  setPrompts(prev => {
-    const newPrompts = [...prev];
-    newPrompts[index] = value;
-    if (onPromptsChange) {
-      onPromptsChange(newPrompts);
-    }
-    return newPrompts;
+    setPrompts(prev => {
+      const newPrompts = [...prev];
+      newPrompts[index] = value;
+      if (onPromptsChange) {
+        onPromptsChange(newPrompts);
+      }
+      return newPrompts;
     });
   };
 
-  // 参考图上传
-  const handleRefUpload = (file: File) => {
+  // ✅ 修改后的参考图上传（直传 Blob）
+  const handleRefUpload = async (file: File) => {
     if (referenceImages.length >= 8) {
       message.warning('最多上传8张参考图');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-    const newImages = [...referenceImages, e.target?.result as string];
+
+    try {
+      const blob = await put(`${Date.now()}-${file.name}`, file, {
+        access: 'public',
+        token: process.env.NEXT_PUBLIC_BLOB_READ_WRITE_TOKEN,
+      });
+
+      const newImages = [...referenceImages, blob.url];
+      setReferenceImages(newImages);
+      if (onReferenceImagesChange) {
+        onReferenceImagesChange(newImages);
+      }
+      message.success('参考图上传成功！');
+    } catch (error) {
+      console.error('上传失败:', error);
+      message.error('参考图上传失败');
+    }
+  };
+
+  const removeReferenceImage = (index: number) => {
+    const newImages = referenceImages.filter((_, i) => i !== index);
     setReferenceImages(newImages);
     if (onReferenceImagesChange) {
       onReferenceImagesChange(newImages);
     }
   };
-  reader.readAsDataURL(file);
-};
 
-  const removeReferenceImage = (index: number) => {
-  const newImages = referenceImages.filter((_, i) => i !== index);
-  setReferenceImages(newImages);
-  if (onReferenceImagesChange) {
-    onReferenceImagesChange(newImages);
-  }
-};
-
-  // 更新图片列表并通知父组件
   const updateImages = (newImages: GeneratedImage[]) => {
     setGeneratedImages(newImages);
     if (onImagesChange) {
@@ -350,24 +347,21 @@ useEffect(() => {
     }
   };
 
-  // ---------- 生成图片（批量） ----------
   const handleGenerateAll = async () => {
     const validPrompts = prompts.filter(p => p.trim().length > 0);
     if (validPrompts.length === 0) {
       message.warning('请至少填写一个提示词');
       return;
     }
-    // 🔥 显示进度条
     setProgressTitle('正在生成图片...');
-  setProgressVisible(true);
-  setLoading(true);
+    setProgressVisible(true);
+    setLoading(true);
 
     const platformLabel = PLATFORMS.find(p => p.value === platform)?.label || platform;
     const languageLabel = LANGUAGES.find(l => l.value === language)?.label || language;
     const refCount = referenceImages.length;
     const enhancedBase = `[平台: ${platformLabel}] [语言: ${languageLabel}]` + (refCount > 0 ? ` [参考图${refCount}张]` : '');
 
-    setLoading(true);
     const newImages: GeneratedImage[] = [];
 
     for (let i = 0; i < validPrompts.length; i++) {
@@ -416,19 +410,17 @@ useEffect(() => {
           if (onGenerateSuccess) {
             onGenerateSuccess(data.imageUrl);
           }
-          // 历史记录已移除
         } else {
           message.error(`第 ${i+1} 张生成失败: ${data.error || '未知错误'}`);
         }
       } catch (error) {
         console.error(`第 ${i+1} 张生成失败:`, error);
         message.error(`第 ${i+1} 张生成失败，请重试`);
-      }finally {
-    setProgressVisible(false);
-    setLoading(false);
-  }
-};
-    
+      } finally {
+        setProgressVisible(false);
+        setLoading(false);
+      }
+    }
 
     const updatedList = [...generatedImages, ...newImages];
     updateImages(updatedList);
@@ -438,7 +430,6 @@ useEffect(() => {
     setLoading(false);
   };
 
-  // 重新生成单张
   const handleRegenerate = async (imageId: string, newPrompt: string) => {
     if (!newPrompt.trim()) {
       message.warning('请输入描述词');
@@ -507,7 +498,6 @@ useEffect(() => {
         if (onGenerateSuccess) {
           onGenerateSuccess(data.imageUrl);
         }
-        // 历史记录已移除
       } else {
         message.error('重新生成失败: ' + (data.error || '未知错误'));
         const restored = generatedImages.map((img) =>
@@ -525,13 +515,11 @@ useEffect(() => {
     }
   };
 
-  // 删除图片
   const handleDeleteImage = (id: string) => {
     const updated = generatedImages.filter((img) => img.id !== id);
     updateImages(updated);
   };
 
-  // 导出PSD
   const dataURLToBlob = (dataUrl: string): Blob => {
     let processedData = dataUrl;
     if (!dataUrl.startsWith('data:')) {
@@ -549,73 +537,70 @@ useEffect(() => {
   };
 
   const handleExportPSD = async (imageUrl: string) => {
-    // 检查会员类型
-  if (membershipType === 'experience') {
-    Modal.warning({
-      title: '功能受限',
-      content: '导出PSD功能仅限进阶会员和专业会员使用，请升级会员',
-      okText: '去升级',
-      onOk: () => {
-        // 跳转到会员页面
-        router.push('/workspace/pricing');
-      },
-    });
-    return;
-  }
-  setProgressTitle('正在导出PSD...');
-  setProgressVisible(true);
-
-  try {
-    const res = await fetch('/api/layer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl }),
-    });
-    const data = await res.json();
-
-    if (!data.success) {
-      if (res.status === 402) {
-        message.error(data.error || '积分不足，无法导出图层');
-      } else {
-        throw new Error(data.error || '分层失败');
-      }
+    if (membershipType === 'experience') {
+      Modal.warning({
+        title: '功能受限',
+        content: '导出PSD功能仅限进阶会员和专业会员使用，请升级会员',
+        okText: '去升级',
+        onOk: () => {
+          router.push('/workspace/pricing');
+        },
+      });
       return;
     }
+    setProgressTitle('正在导出PSD...');
+    setProgressVisible(true);
 
-    if (data.credits !== undefined) {
-      setCredits(data.credits);
-      message.success(`✅ 图层导出成功，剩余积分：${data.credits}`);
+    try {
+      const res = await fetch('/api/layer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        if (res.status === 402) {
+          message.error(data.error || '积分不足，无法导出图层');
+        } else {
+          throw new Error(data.error || '分层失败');
+        }
+        return;
+      }
+
+      if (data.credits !== undefined) {
+        setCredits(data.credits);
+        message.success(`✅ 图层导出成功，剩余积分：${data.credits}`);
+      }
+
+      const zip = new JSZip();
+      for (let i = 0; i < data.layers.length; i++) {
+        const layer = data.layers[i];
+        if (!layer.data) continue;
+        const blob = dataURLToBlob(layer.data);
+        zip.file(`图层${i+1}_${layer.name}.png`, blob);
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      if (zipBlob.size === 0) {
+        throw new Error('生成的 ZIP 为空');
+      }
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `layers_${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      message.success('图层打包下载成功！');
+    } catch (error) {
+      console.error('导出失败:', error);
+      message.error('导出失败，请重试');
+    } finally {
+      setProgressVisible(false);
     }
+  };
 
-    const zip = new JSZip();
-    for (let i = 0; i < data.layers.length; i++) {
-      const layer = data.layers[i];
-      if (!layer.data) continue;
-      const blob = dataURLToBlob(layer.data);
-      zip.file(`图层${i+1}_${layer.name}.png`, blob);
-    }
-
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    if (zipBlob.size === 0) {
-      throw new Error('生成的 ZIP 为空');
-    }
-
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(zipBlob);
-    link.download = `layers_${Date.now()}.zip`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    message.success('图层打包下载成功！');
-  } catch (error) {
-    console.error('导出失败:', error);
-    message.error('导出失败，请重试');
-  } finally {
-    setProgressVisible(false);
-  }
-};
-
-  // ---------- UI 渲染 ----------
   return (
     <Card
       title={<span style={{ fontSize: 16, fontWeight: 600 }}>文字生图</span>}
@@ -633,7 +618,6 @@ useEffect(() => {
         overflow: 'auto',
       }}}
     >
-      {/* 控制栏 */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
         <Select
           value={model}
@@ -686,7 +670,6 @@ useEffect(() => {
         />
       </div>
 
-      {/* 参考图上传 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '12px', flexWrap: 'wrap' }}>
         <div
           style={{
@@ -754,7 +737,6 @@ useEffect(() => {
         <span style={{ color: '#999', fontSize: 13 }}>上传参考图 (最多8张)</span>
       </div>
 
-      {/* 多提示词输入框 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '12px' }}>
         {prompts.map((p, idx) => (
           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -770,15 +752,11 @@ useEffect(() => {
         ))}
       </div>
 
-      {/* 生成按钮 */}
       <Button type="primary" onClick={handleGenerateAll} loading={loading} style={{ width: 160 }}>
         一键生成 {prompts.filter(p => p.trim().length > 0).length} 张
       </Button>
       {loading && <Spin tip="生成中，请稍候..." style={{ marginLeft: '12px' }} />}
 
-      {/* 历史记录按钮已移除 */}
-
-      {/* 生成结果 */}
       {generatedImages.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <Divider orientation="left" style={{ margin: '8px 0 16px 0' }}>
@@ -867,9 +845,9 @@ useEffect(() => {
         </div>
       )}
       <LoadingProgressModal
-      visible={progressVisible}
-      title={progressTitle}
-    />
+        visible={progressVisible}
+        title={progressTitle}
+      />
     </Card>
   );
 }
