@@ -10,7 +10,7 @@ import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 import { StarOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { Modal } from 'antd';
 import { useRouter } from 'next/navigation';
-import { put } from '@vercel/blob'; // ✅ 导入直传 Blob
+import { put } from '@vercel/blob';
 
 const { TextArea } = Input;
 
@@ -307,7 +307,7 @@ export default function ImageGenerator({
     });
   };
 
-  // ✅ 修改后的参考图上传（直传 Blob）
+  // ✅ 参考图上传（直传 Blob）
   const handleRefUpload = async (file: File) => {
     if (referenceImages.length >= 8) {
       message.warning('最多上传8张参考图');
@@ -377,7 +377,7 @@ export default function ImageGenerator({
             aspectRatio,
             platform,
             language,
-            referenceImages: referenceImages,
+            referenceImages: referenceImages, // 按顺序传递
           }),
         });
 
@@ -670,48 +670,86 @@ export default function ImageGenerator({
         />
       </div>
 
+      {/* ===== 参考图上传区域（已优化） ===== */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '12px', flexWrap: 'wrap' }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            border: '2px dashed #d9d9d9',
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'border-color 0.3s',
-            position: 'relative',
-            flexShrink: 0,
-            overflow: 'hidden',
-            backgroundColor: '#fafafa',
-          }}
-          onClick={() => document.getElementById('ref-upload-input')?.click()}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1677ff'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d9d9d9'; }}
-        >
-          {referenceImages.length > 0 ? (
-            <img src={referenceImages[0]} alt="参考图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
+        {/* 显示所有已上传的参考图（按顺序从左到右） */}
+        {referenceImages.map((img, idx) => (
+          <div key={idx} style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+            <img
+              src={img}
+              alt={`参考图${idx+1}`}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: 4,
+                border: '1px solid #e8e8e8',
+              }}
+            />
+            {/* 删除按钮 */}
+            <CloseCircleOutlined
+              style={{
+                position: 'absolute',
+                top: -6,
+                right: -6,
+                color: '#ff4d4f',
+                cursor: 'pointer',
+                fontSize: 16,
+                background: '#fff',
+                borderRadius: '50%',
+              }}
+              onClick={() => removeReferenceImage(idx)}
+            />
+            {/* 序号标签 */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                background: 'rgba(0,0,0,0.5)',
+                color: '#fff',
+                fontSize: 10,
+                textAlign: 'center',
+                padding: '1px 0',
+                borderBottomLeftRadius: 4,
+                borderBottomRightRadius: 4,
+              }}
+            >
+              #{idx + 1}
+            </div>
+          </div>
+        ))}
+
+        {/* 如果未达到8张，显示 "+" 号按钮 */}
+        {referenceImages.length < 8 && (
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              border: '2px dashed #d9d9d9',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'border-color 0.3s',
+              flexShrink: 0,
+              backgroundColor: '#fafafa',
+            }}
+            onClick={() => document.getElementById('ref-upload-input')?.click()}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#1677ff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#d9d9d9';
+            }}
+          >
             <PlusOutlined style={{ fontSize: 24, color: '#999' }} />
-          )}
-          {referenceImages.length > 1 && (
-            <span style={{
-              position: 'absolute',
-              bottom: 2,
-              right: 2,
-              background: 'rgba(0,0,0,0.6)',
-              color: '#fff',
-              fontSize: 10,
-              padding: '0 4px',
-              borderRadius: 4,
-              lineHeight: '16px',
-            }}>
-              +{referenceImages.length - 1}
-            </span>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* 隐藏的文件输入 */}
         <input
           id="ref-upload-input"
           type="file"
@@ -725,16 +763,11 @@ export default function ImageGenerator({
             e.target.value = '';
           }}
         />
-        {referenceImages.slice(1).map((img, idx) => (
-          <div key={idx} style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
-            <img src={img} alt={`参考图${idx+2}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 }} />
-            <CloseCircleOutlined
-              style={{ position: 'absolute', top: -6, right: -6, color: '#ff4d4f', cursor: 'pointer', fontSize: 16, background: '#fff', borderRadius: '50%' }}
-              onClick={() => removeReferenceImage(idx + 1)}
-            />
-          </div>
-        ))}
-        <span style={{ color: '#999', fontSize: 13 }}>上传参考图 (最多8张)</span>
+
+        {/* 计数提示 */}
+        <span style={{ color: '#999', fontSize: 13 }}>
+          上传参考图 ({referenceImages.length}/8)
+        </span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '12px' }}>
