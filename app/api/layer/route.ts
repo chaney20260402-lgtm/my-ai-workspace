@@ -11,6 +11,22 @@ const replicate = new Replicate({
 
 const CREDITS_PER_LAYER = 8;
 
+// 轮询等待预测完成
+const waitForPrediction = async (prediction: any, maxAttempts = 60, interval = 3000) => {
+  for (let i = 0; i < maxAttempts; i++) {
+    const status = await replicate.predictions.get(prediction.id);
+    console.log(`⏳ 轮询第 ${i+1} 次，状态: ${status.status}`);
+    if (status.status === 'succeeded') {
+      return status;
+    }
+    if (status.status === 'failed' || status.status === 'canceled') {
+      throw new Error(`预测失败: ${status.error || '未知错误'}`);
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+  throw new Error('预测超时，请稍后重试');
+};
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -24,6 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '缺少图片URL' }, { status: 400 });
     }
 
+    // 积分扣除
     let newCredits: number;
     try {
       newCredits = await deductCredits(userPhone, CREDITS_PER_LAYER, '拆解图层', 'consume');
@@ -35,20 +52,34 @@ export async function POST(req: NextRequest) {
     }
     console.log(`💰 当前剩余积分: ${newCredits}`);
 
-    console.log('📤 调用 ideogram-ai/layerize 模型...');
-    const input = {
-      flat_graphic_image: imageUrl,
-      prompt: 'Extract text layers',
-      seed: Math.floor(Math.random() * 1000000),
-    };
+    // ============================================================
+    // 创建异步预测（不等待完成）
+    // ============================================================
+    console.log('📤 创建 ideogram-ai/layerize 预测...');
+    const prediction = await replicate.predictions.create({
+      version: "ideogram-ai/layerize", // 或使用特定的 version ID
+      input: {
+        flat_graphic_image: imageUrl,
+        prompt: "Extract text layers",
+        seed: Math.floor(Math.random() * 1000000),
+      },
+    });
 
-    // 类型断言：输出为数组
-    const output = (await replicate.run('ideogram-ai/layerize', { input })) as any[];
+    console.log(`📌 预测 ID: ${prediction.id}`);
+    console.log(`🔗 状态查询: ${prediction.urls?.get}`);
 
-    if (!Array.isArray(output) || output.length < 2) {
-      throw new Error('模型返回格式异常');
+    // ============================================================
+    // 轮询等待完成
+    // ============================================================
+    const result = await waitForPrediction(prediction);
+
+    // 解析输出
+    const output = result.output;
+    if (!output || !Array.isArray(output) || output.length < 2) {
+      throw new Error('输出格式异常');
     }
 
+    // 获取背景图 URL（第一个元素）
     const baseImageObj = output[0];
     const textBlocks = output[1] || [];
 
@@ -63,6 +94,9 @@ export async function POST(req: NextRequest) {
     console.log(`📥 获取到背景图: ${baseImageUrl}`);
     console.log(`📝 提取到 ${textBlocks.length} 个文本块`);
 
+    // ============================================================
+    // 下载背景图作为 base 图层
+    // ============================================================
     const baseRes = await fetch(baseImageUrl);
     if (!baseRes.ok) throw new Error('下载背景图失败');
     const baseArrayBuffer = await baseRes.arrayBuffer();
@@ -72,9 +106,11 @@ export async function POST(req: NextRequest) {
     const imgWidth = baseImage.width;
     const imgHeight = baseImage.height;
 
+    // ============================================================
+    // 生成图层数组（背景 + 每个文本块为单独图层）
+    // ============================================================
     const layers: { name: string; data: string; width: number; height: number; opacity: number }[] = [];
 
-    // 背景图层
     layers.push({
       name: '背景',
       data: baseBuffer.toString('base64'),
@@ -83,7 +119,6 @@ export async function POST(req: NextRequest) {
       opacity: 1,
     });
 
-    // 文本图层
     for (let i = 0; i < textBlocks.length; i++) {
       const block = textBlocks[i];
       if (!block.bbox) {
@@ -97,34 +132,16 @@ export async function POST(req: NextRequest) {
 
       ctx.clearRect(0, 0, imgWidth, imgHeight);
 
-      // 估算字号
       const fontSize = Math.min(width, height) * 0.8;
       ctx.font = `${fontSize}px "${block.font_name || 'Arial'}"`;
       ctx.fillStyle = block.color || '#000000';
       ctx.textBaseline = 'top';
       ctx.textAlign = 'left';
 
-      // 处理文本换行（简单处理）
-      const words = block.text?.split(' ') || [];
-      let line = '';
-      let yOffset = 0;
-      const lineHeight = fontSize * 1.2;
-      for (const word of words) {
-        const testLine = line + word + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > width && line.length > 0) {
-          ctx.fillText(line, x, y + yOffset);
-          line = word + ' ';
-          yOffset += lineHeight;
-        } else {
-          line = testLine;
-        }
-      }
-      if (line) {
-        ctx.fillText(line, x, y + yOffset);
-      }
+      ctx.fillText(block.text || '', x, y, width);
 
       const pngBuffer = canvas.toBuffer('image/png');
+
       layers.push({
         name: `文本_${i + 1}`,
         data: pngBuffer.toString('base64'),
