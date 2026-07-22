@@ -10,9 +10,10 @@ const replicate = new Replicate({
 });
 
 const CREDITS_PER_LAYER = 8;
+export const maxDuration = 300; // 5 分钟（300 秒）
 
 // 轮询等待预测完成
-const waitForPrediction = async (prediction: any, maxAttempts = 60, interval = 3000) => {
+const waitForPrediction = async (prediction: any, maxAttempts = 180, interval = 3000) => {
   for (let i = 0; i < maxAttempts; i++) {
     const status = await replicate.predictions.get(prediction.id);
     console.log(`⏳ 轮询第 ${i+1} 次，状态: ${status.status}`);
