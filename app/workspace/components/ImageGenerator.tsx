@@ -537,23 +537,24 @@ export default function ImageGenerator({
     return new Blob([u8arr], { type: mime });
   };
 
+  // ========== 修改后的导出PSD函数 ==========
   const handleExportPSD = async (imageUrl: string) => {
-  // 🔑 硬编码管理员手机号（直接写死）
-  const ADMIN_PHONE = '13929767725';
-  const isAdmin = session?.user?.phone === ADMIN_PHONE;
+    const ADMIN_PHONE = '13929767725';
+    const isAdmin = session?.user?.phone === ADMIN_PHONE;
 
-  if (!isAdmin && membershipType === 'experience') {
-    Modal.warning({
-      title: '功能受限',
-      content: '导出PSD功能仅限进阶会员和专业会员使用，请升级会员',
-      okText: '去升级',
-      onOk: () => {
-        router.push('/workspace/pricing');
-      },
-    });
-    return;
-  }
-    setProgressTitle('正在导出PSD...');
+    if (!isAdmin && membershipType === 'experience') {
+      Modal.warning({
+        title: '功能受限',
+        content: '导出PSD功能仅限进阶会员和专业会员使用，请升级会员',
+        okText: '去升级',
+        onOk: () => {
+          router.push('/workspace/pricing');
+        },
+      });
+      return;
+    }
+
+    setProgressTitle('正在拆解图层...');
     setProgressVisible(true);
 
     try {
@@ -565,31 +566,61 @@ export default function ImageGenerator({
       const data = await res.json();
 
       if (!data.success) {
-        if (res.status === 402) {
-          message.error(data.error || '积分不足，无法导出图层');
-        } else {
-          throw new Error(data.error || '分层失败');
-        }
-        return;
+        throw new Error(data.error || '拆图失败');
       }
 
       if (data.credits !== undefined) {
         setCredits(data.credits);
-        message.success(`✅ 图层导出成功，剩余积分：${data.credits}`);
       }
 
+      // 下载背景图
+      const baseRes = await fetch(data.baseImage);
+      if (!baseRes.ok) throw new Error('下载背景图失败');
+      const baseBlob = await baseRes.blob();
+      const baseBuffer = await baseRes.arrayBuffer();
+
       const zip = new JSZip();
-      for (let i = 0; i < data.layers.length; i++) {
-        const layer = data.layers[i];
-        if (!layer.data) continue;
-        const blob = dataURLToBlob(layer.data);
-        zip.file(`图层${i+1}_${layer.name}.png`, blob);
+      // 添加背景图层
+      zip.file('背景.png', baseBlob);
+
+      // 获取图片尺寸（用于绘制文本）
+      const img = new Image();
+      img.src = data.baseImage;
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+      });
+      const imgWidth = img.width || 1920;
+      const imgHeight = img.height || 1080;
+
+      // 为每个文本块生成透明 PNG 图层
+      for (let i = 0; i < data.textBlocks.length; i++) {
+        const block = data.textBlocks[i];
+        if (!block.bbox) continue;
+        const { x, y, width, height } = block.bbox;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = imgWidth;
+        canvas.height = imgHeight;
+        const ctx = canvas.getContext('2d')!;
+        ctx.clearRect(0, 0, imgWidth, imgHeight);
+
+        // 根据块大小估算字号
+        const fontSize = Math.min(width, height) * 0.8;
+        ctx.font = `${fontSize}px "${block.font_name || 'Arial'}"`;
+        ctx.fillStyle = block.color || '#000000';
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+        ctx.fillText(block.text || '', x, y, width);
+
+        const pngDataUrl = canvas.toDataURL('image/png');
+        const pngRes = await fetch(pngDataUrl);
+        const pngBlob = await pngRes.blob();
+        zip.file(`文本_${i+1}.png`, pngBlob);
       }
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      if (zipBlob.size === 0) {
-        throw new Error('生成的 ZIP 为空');
-      }
+      if (zipBlob.size === 0) throw new Error('生成的 ZIP 为空');
 
       const link = document.createElement('a');
       link.href = URL.createObjectURL(zipBlob);
@@ -598,9 +629,9 @@ export default function ImageGenerator({
       link.click();
       document.body.removeChild(link);
       message.success('图层打包下载成功！');
-    } catch (error) {
+    } catch (error: any) {
       console.error('导出失败:', error);
-      message.error('导出失败，请重试');
+      message.error(error.message || '导出失败，请重试');
     } finally {
       setProgressVisible(false);
     }
