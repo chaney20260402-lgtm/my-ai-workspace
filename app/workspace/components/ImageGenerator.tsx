@@ -11,6 +11,7 @@ import { StarOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-desi
 import { Modal } from 'antd';
 import { useRouter } from 'next/navigation';
 import { put } from '@vercel/blob';
+import { useSession } from 'next-auth/react';
 
 const { TextArea } = Input;
 
@@ -219,7 +220,7 @@ export default function ImageGenerator({
 }: ImageGeneratorProps) {
   const { setCredits } = useCredits();
   const router = useRouter();
-
+  const { data: session } = useSession();
   const [model, setModel] = useState(initialModel);
   const [size, setSize] = useState(initialSize);
   const [aspectRatio, setAspectRatio] = useState(initialAspectRatio);
@@ -537,17 +538,21 @@ export default function ImageGenerator({
   };
 
   const handleExportPSD = async (imageUrl: string) => {
-    if (membershipType === 'experience') {
-      Modal.warning({
-        title: '功能受限',
-        content: '导出PSD功能仅限进阶会员和专业会员使用，请升级会员',
-        okText: '去升级',
-        onOk: () => {
-          router.push('/workspace/pricing');
-        },
-      });
-      return;
-    }
+  // 🔑 硬编码管理员手机号（直接写死）
+  const ADMIN_PHONE = '13929767725';
+  const isAdmin = session?.user?.phone === ADMIN_PHONE;
+
+  if (!isAdmin && membershipType === 'experience') {
+    Modal.warning({
+      title: '功能受限',
+      content: '导出PSD功能仅限进阶会员和专业会员使用，请升级会员',
+      okText: '去升级',
+      onOk: () => {
+        router.push('/workspace/pricing');
+      },
+    });
+    return;
+  }
     setProgressTitle('正在导出PSD...');
     setProgressVisible(true);
 
