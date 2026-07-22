@@ -40,24 +40,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '缺少图片URL' }, { status: 400 });
     }
 
-    // 积分扣除
-    let newCredits: number;
-    try {
-      newCredits = await deductCredits(userPhone, CREDITS_PER_LAYER, '拆解图层', 'consume');
-    } catch (error: any) {
-      return NextResponse.json(
-        { error: error.message || '积分不足，无法拆解图层' },
-        { status: 402 }
-      );
-    }
-    console.log(`💰 当前剩余积分: ${newCredits}`);
-
-    // ============================================================
-    // 创建异步预测（不等待完成）
-    // ============================================================
+    // 1. 创建预测（不扣积分）
     console.log('📤 创建 ideogram-ai/layerize 预测...');
     const prediction = await replicate.predictions.create({
-      version: "ideogram-ai/layerize", // 或使用特定的 version ID
+      version: "ideogram-ai/layerize",
       input: {
         flat_graphic_image: imageUrl,
         prompt: "Extract text layers",
@@ -68,17 +54,30 @@ export async function POST(req: NextRequest) {
     console.log(`📌 预测 ID: ${prediction.id}`);
     console.log(`🔗 状态查询: ${prediction.urls?.get}`);
 
-    // ============================================================
-    // 轮询等待完成
-    // ============================================================
+    // 2. 轮询等待结果
     const result = await waitForPrediction(prediction);
 
-    // 解析输出
+    // 3. 解析输出
     const output = result.output;
     if (!output || !Array.isArray(output) || output.length < 2) {
       throw new Error('输出格式异常');
     }
 
+    // 4. ✅ 成功获取结果，现在扣除积分
+    let newCredits: number;
+    try {
+      newCredits = await deductCredits(userPhone, CREDITS_PER_LAYER, '拆解图层', 'consume');
+    } catch (error: any) {
+      console.error('❌ 积分扣除失败:', error.message);
+      // 虽然模型成功，但积分扣减失败，仍需返回错误
+      return NextResponse.json(
+        { error: error.message || '积分不足，无法拆解图层' },
+        { status: 402 }
+      );
+    }
+    console.log(`💰 当前剩余积分: ${newCredits}`);
+
+    // 5. 处理图层数据...
     // 获取背景图 URL（第一个元素）
     const baseImageObj = output[0];
     const textBlocks = output[1] || [];
@@ -94,9 +93,7 @@ export async function POST(req: NextRequest) {
     console.log(`📥 获取到背景图: ${baseImageUrl}`);
     console.log(`📝 提取到 ${textBlocks.length} 个文本块`);
 
-    // ============================================================
     // 下载背景图作为 base 图层
-    // ============================================================
     const baseRes = await fetch(baseImageUrl);
     if (!baseRes.ok) throw new Error('下载背景图失败');
     const baseArrayBuffer = await baseRes.arrayBuffer();
@@ -106,9 +103,6 @@ export async function POST(req: NextRequest) {
     const imgWidth = baseImage.width;
     const imgHeight = baseImage.height;
 
-    // ============================================================
-    // 生成图层数组（背景 + 每个文本块为单独图层）
-    // ============================================================
     const layers: { name: string; data: string; width: number; height: number; opacity: number }[] = [];
 
     layers.push({
@@ -160,6 +154,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('❌ 拆图失败:', error);
+    // 如果预测失败或超时，不扣除积分（积分已在前面扣除，但若异常发生在扣积分之前，则不会扣）
+    // 如果扣积分后出现异常，可能导致积分已扣但结果未返回，这是一个需要权衡的点。
+    // 这里假设扣积分后很少出错，如果出错，记录日志并返回错误。
     return NextResponse.json(
       { error: error.message || '拆图处理失败' },
       { status: 500 }
