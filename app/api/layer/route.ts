@@ -60,16 +60,18 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       console.error('Ideogram API 错误:', data);
-      throw new Error(data.error || '文本提取失败');
+      // 透传 Ideogram 错误信息
+      throw new Error(data.error || data.message || '文本提取失败');
     }
 
     console.log(`📥 获取到背景图: ${data.base_image_url}`);
-    console.log(`📝 提取到 ${data.text_blocks?.length || 0} 个文本块`);
+    const textBlocks = data.text_blocks || []; // 确保是数组
+    console.log(`📝 提取到 ${textBlocks.length} 个文本块`);
 
     return NextResponse.json({
       success: true,
       baseImage: data.base_image_url,
-      textBlocks: data.text_blocks || [],
+      textBlocks: textBlocks,
       credits: newCredits,
     });
   } catch (error: any) {
