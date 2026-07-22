@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
       throw new Error('IDEOGRAM_API_KEY 未配置');
     }
 
-    // 下载图片为 Buffer
+    // 下载用户图片
     const imageRes = await fetch(imageUrl);
-    if (!imageRes.ok) throw new Error('下载图片失败');
+    if (!imageRes.ok) throw new Error('下载用户图片失败');
     const imageBuffer = await imageRes.arrayBuffer();
 
     // 构建 FormData
@@ -60,18 +60,38 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       console.error('Ideogram API 错误:', data);
-      // 透传 Ideogram 错误信息
-      throw new Error(data.error || data.message || '文本提取失败');
+      throw new Error(data.error || '文本提取失败');
     }
 
-    console.log(`📥 获取到背景图: ${data.base_image_url}`);
-    const textBlocks = data.text_blocks || []; // 确保是数组
-    console.log(`📝 提取到 ${textBlocks.length} 个文本块`);
+    console.log(`📥 获取到背景图 URL: ${data.base_image_url}`);
+    console.log(`📝 提取到 ${data.text_blocks?.length || 0} 个文本块`);
 
+    // ============================================================
+    // ✅ 代理下载背景图，转为 Base64 Data URL（避免 CORS）
+    // ============================================================
+    let baseImageDataUrl: string | null = null;
+    try {
+      const bgRes = await fetch(data.base_image_url);
+      if (bgRes.ok) {
+        const bgBuffer = await bgRes.arrayBuffer();
+        const base64 = Buffer.from(bgBuffer).toString('base64');
+        // 从响应头获取 MIME 类型（默认为 png）
+        const contentType = bgRes.headers.get('content-type') || 'image/png';
+        baseImageDataUrl = `data:${contentType};base64,${base64}`;
+        console.log(`✅ 背景图已转换为 Data URL (长度: ${baseImageDataUrl.length})`);
+      } else {
+        console.warn('⚠️ 下载背景图失败，状态:', bgRes.status);
+      }
+    } catch (bgError) {
+      console.error('❌ 下载背景图异常:', bgError);
+      // 不抛出，允许降级
+    }
+
+    // 如果转换失败，仍返回原始 URL（但前端可能因 CORS 无法使用）
     return NextResponse.json({
       success: true,
-      baseImage: data.base_image_url,
-      textBlocks: data.text_blocks || [],  // 明确为 textBlocks
+      baseImage: baseImageDataUrl || data.base_image_url, // 优先返回 Data URL
+      textBlocks: data.text_blocks || [],
       credits: newCredits,
     });
   } catch (error: any) {

@@ -537,7 +537,7 @@ export default function ImageGenerator({
     return new Blob([u8arr], { type: mime });
   };
 
-  // ========== 修改后的导出PSD函数（增加安全访问） ==========
+  // ========== 最终修复的导出PSD函数 ==========
   const handleExportPSD = async (imageUrl: string) => {
     const ADMIN_PHONE = '13929767725';
     const isAdmin = session?.user?.phone === ADMIN_PHONE;
@@ -573,22 +573,32 @@ export default function ImageGenerator({
         setCredits(data.credits);
       }
 
-      // 安全获取背景图
+      // 检查背景图
       if (!data.baseImage) {
         throw new Error('未获取到背景图');
       }
 
-      // 下载背景图
-      const baseRes = await fetch(data.baseImage);
-      if (!baseRes.ok) throw new Error('下载背景图失败');
-      const baseBlob = await baseRes.blob();
+      // 1. 获取背景图 Blob（支持 Data URL 或普通 URL）
+      let baseBlob: Blob;
+      if (data.baseImage.startsWith('data:')) {
+        // 已经是 Data URL，直接转换
+        baseBlob = dataURLToBlob(data.baseImage);
+      } else {
+        // 普通 URL，尝试下载（可能跨域，但后端已代理所以应该没问题）
+        const baseRes = await fetch(data.baseImage);
+        if (!baseRes.ok) throw new Error('下载背景图失败');
+        baseBlob = await baseRes.blob();
+      }
 
       const zip = new JSZip();
-      // 添加背景图层
       zip.file('背景.png', baseBlob);
 
-      // 获取图片尺寸（用于绘制文本）
+      // 2. 获取图片尺寸
       const img = new Image();
+      // 如果是 Data URL，直接使用；如果是 URL，添加 crossOrigin
+      if (!data.baseImage.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
       img.src = data.baseImage;
       await new Promise<void>((resolve) => {
         img.onload = () => resolve();
@@ -597,7 +607,7 @@ export default function ImageGenerator({
       const imgWidth = img.width || 1920;
       const imgHeight = img.height || 1080;
 
-      // ✅ 安全获取文本块数组
+      // 3. 生成文本图层
       const textBlocks = data.textBlocks || [];
       for (let i = 0; i < textBlocks.length; i++) {
         const block = textBlocks[i];
@@ -610,7 +620,6 @@ export default function ImageGenerator({
         const ctx = canvas.getContext('2d')!;
         ctx.clearRect(0, 0, imgWidth, imgHeight);
 
-        // 根据块大小估算字号
         const fontSize = Math.min(width, height) * 0.8;
         ctx.font = `${fontSize}px "${block.font_name || 'Arial'}"`;
         ctx.fillStyle = block.color || '#000000';
@@ -619,8 +628,7 @@ export default function ImageGenerator({
         ctx.fillText(block.text || '', x, y, width);
 
         const pngDataUrl = canvas.toDataURL('image/png');
-        const pngRes = await fetch(pngDataUrl);
-        const pngBlob = await pngRes.blob();
+        const pngBlob = dataURLToBlob(pngDataUrl);
         zip.file(`文本_${i+1}.png`, pngBlob);
       }
 
