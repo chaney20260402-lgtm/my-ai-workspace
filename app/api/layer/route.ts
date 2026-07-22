@@ -3,151 +3,144 @@ import Replicate from 'replicate';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { deductCredits } from '@/lib/credits';
+import { createCanvas, loadImage } from 'canvas';
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-// 每次拆解图层消耗的积分数（可调整）
 const CREDITS_PER_LAYER = 8;
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. 验证用户身份
     const session = await getServerSession(authOptions);
     if (!session?.user?.phone) {
-      return NextResponse.json({ error: '未登录，请先登录' }, { status: 401 });
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
     const userPhone = session.user.phone;
 
-    // 2. 解析请求体
     const { imageUrl } = await req.json();
     if (!imageUrl) {
       return NextResponse.json({ error: '缺少图片URL' }, { status: 400 });
     }
 
-    // 3. 积分扣除（开发环境跳过）
     let newCredits: number;
-    const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) {
-      console.log(`⚠️ 开发模式：跳过实际积分扣除，假装消耗 ${CREDITS_PER_LAYER} 积分`);
-      // 模拟剩余积分（假设原有100分）
-      newCredits = 100 - CREDITS_PER_LAYER;
-    } else {
-      try {
-        newCredits = await deductCredits(userPhone, CREDITS_PER_LAYER, '拆解图层', 'consume');
-      } catch (error: any) {
-        console.error('❌ 积分扣除失败:', error.message);
-        return NextResponse.json(
-          { error: error.message || '积分不足，无法拆解图层' },
-          { status: 402 }
-        );
-      }
+    try {
+      newCredits = await deductCredits(userPhone, CREDITS_PER_LAYER, '拆解图层', 'consume');
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message || '积分不足，无法拆解图层' },
+        { status: 402 }
+      );
     }
-
     console.log(`💰 当前剩余积分: ${newCredits}`);
 
-    // 4. 调用 Replicate 拆图
-    console.log('📤 调用 Replicate Qwen-Image-Layered 模型...');
-    const output = await replicate.run(
-      "qwen/qwen-image-layered",
-      {
-        input: {
-          image: imageUrl,
-          num_layers: 4,
-          description: "auto",
-          go_fast: true,
-          output_format: "png",
-          output_quality: 95,
-        }
-      }
-    );
+    console.log('📤 调用 ideogram-ai/layerize 模型...');
+    const input = {
+      flat_graphic_image: imageUrl,
+      prompt: 'Extract text layers',
+      seed: Math.floor(Math.random() * 1000000),
+    };
 
-    if (!Array.isArray(output)) {
-      throw new Error(`意外的输出格式：${typeof output}`);
+    // 类型断言：输出为数组
+    const output = (await replicate.run('ideogram-ai/layerize', { input })) as any[];
+
+    if (!Array.isArray(output) || output.length < 2) {
+      throw new Error('模型返回格式异常');
     }
 
-    // 调试日志（保留原有）
-    console.log('📦 输出长度:', output.length);
-    (output as any[]).forEach((item: any, idx: number) => {
-      console.log(`item[${idx}] 类型:`, typeof item);
-      console.log(`item[${idx}] 属性:`, Object.keys(item));
-      console.log(`item[${idx}].url 类型:`, typeof item.url);
-      console.log(`item[${idx}].url 调用结果:`, typeof item.url === 'function' ? item.url() : item.url);
+    const baseImageObj = output[0];
+    const textBlocks = output[1] || [];
+
+    const baseImageUrl = typeof baseImageObj?.url === 'function'
+      ? baseImageObj.url()
+      : baseImageObj?.url;
+
+    if (!baseImageUrl) {
+      throw new Error('未能获取背景图 URL');
+    }
+
+    console.log(`📥 获取到背景图: ${baseImageUrl}`);
+    console.log(`📝 提取到 ${textBlocks.length} 个文本块`);
+
+    const baseRes = await fetch(baseImageUrl);
+    if (!baseRes.ok) throw new Error('下载背景图失败');
+    const baseArrayBuffer = await baseRes.arrayBuffer();
+    const baseBuffer = Buffer.from(baseArrayBuffer);
+
+    const baseImage = await loadImage(baseBuffer);
+    const imgWidth = baseImage.width;
+    const imgHeight = baseImage.height;
+
+    const layers: { name: string; data: string; width: number; height: number; opacity: number }[] = [];
+
+    // 背景图层
+    layers.push({
+      name: '背景',
+      data: baseBuffer.toString('base64'),
+      width: imgWidth,
+      height: imgHeight,
+      opacity: 1,
     });
 
-    // 5. 处理图层数据（不变）
-    const layers = await Promise.all(
-      (output as any[]).map(async (item: any, index: number) => {
-        let buffer: Buffer;
+    // 文本图层
+    for (let i = 0; i < textBlocks.length; i++) {
+      const block = textBlocks[i];
+      if (!block.bbox) {
+        console.warn(`文本块 ${i} 缺少 bbox 信息，跳过`);
+        continue;
+      }
 
-        if (item && typeof item === 'object') {
-          let url: string | null = null;
+      const { x, y, width, height } = block.bbox;
+      const canvas = createCanvas(imgWidth, imgHeight);
+      const ctx = canvas.getContext('2d');
 
-          if (typeof item.url === 'function') {
-            url = item.url();
-          } else if (typeof item.url === 'string') {
-            url = item.url;
-          } else if ('url' in item && typeof (item as any).url === 'string') {
-            url = (item as any).url;
-          }
+      ctx.clearRect(0, 0, imgWidth, imgHeight);
 
-          if (url) {
-            console.log(`图层 ${index+1} 下载中: ${url}`);
-            const response = await fetch(url);
-            const arrayBuffer = await response.arrayBuffer();
-            buffer = Buffer.from(arrayBuffer);
-          } else if ('data' in item) {
-            const data = (item as any).data;
-            if (Buffer.isBuffer(data) || data instanceof Uint8Array) {
-              buffer = Buffer.from(data);
-            } else if (typeof data === 'string') {
-              buffer = Buffer.from(data, 'base64');
-            } else {
-              throw new Error(`图层 ${index+1} 的 data 字段无法处理`);
-            }
-          } else if (Buffer.isBuffer(item) || item instanceof Uint8Array) {
-            buffer = Buffer.from(item);
-          } else {
-            console.warn(`图层 ${index+1} 无有效 URL 或 data，尝试序列化`);
-            buffer = Buffer.from(JSON.stringify(item));
-          }
-        } else if (typeof item === 'string') {
-          if (item.startsWith('http')) {
-            const response = await fetch(item);
-            const arrayBuffer = await response.arrayBuffer();
-            buffer = Buffer.from(arrayBuffer);
-          } else {
-            buffer = Buffer.from(item, 'base64');
-          }
-        } else if (Buffer.isBuffer(item) || item instanceof Uint8Array) {
-          buffer = Buffer.from(item);
+      // 估算字号
+      const fontSize = Math.min(width, height) * 0.8;
+      ctx.font = `${fontSize}px "${block.font_name || 'Arial'}"`;
+      ctx.fillStyle = block.color || '#000000';
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+
+      // 处理文本换行（简单处理）
+      const words = block.text?.split(' ') || [];
+      let line = '';
+      let yOffset = 0;
+      const lineHeight = fontSize * 1.2;
+      for (const word of words) {
+        const testLine = line + word + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > width && line.length > 0) {
+          ctx.fillText(line, x, y + yOffset);
+          line = word + ' ';
+          yOffset += lineHeight;
         } else {
-          throw new Error(`图层 ${index+1} 格式不支持: ${typeof item}`);
+          line = testLine;
         }
+      }
+      if (line) {
+        ctx.fillText(line, x, y + yOffset);
+      }
 
-        if (buffer.length === 0) {
-          throw new Error(`图层 ${index+1} 下载后为空`);
-        }
+      const pngBuffer = canvas.toBuffer('image/png');
+      layers.push({
+        name: `文本_${i + 1}`,
+        data: pngBuffer.toString('base64'),
+        width: imgWidth,
+        height: imgHeight,
+        opacity: 1,
+      });
+    }
 
-        return {
-          name: `图层${index + 1}`,
-          data: buffer.toString('base64'),
-          width: 1024,
-          height: 1024,
-          opacity: 1,
-        };
-      })
-    );
+    console.log(`✅ 成功生成 ${layers.length} 个图层（含背景）`);
 
-    console.log(`✅ 成功拆解 ${layers.length} 个图层，消耗 ${CREDITS_PER_LAYER} 积分`);
-    // 6. 返回结果（包含剩余积分）
     return NextResponse.json({
       success: true,
       layers,
-      credits: newCredits,   // ← 关键：返回剩余积分供前端更新
+      credits: newCredits,
     });
-
   } catch (error: any) {
     console.error('❌ 拆图失败:', error);
     return NextResponse.json(
