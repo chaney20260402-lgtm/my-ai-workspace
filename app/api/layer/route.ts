@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       baseImage: data.base_image_url,
-      textBlocks: textBlocks,
+      textBlocks: data.text_blocks || [],  // 明确为 textBlocks
       credits: newCredits,
     });
   } catch (error: any) {

@@ -537,7 +537,7 @@ export default function ImageGenerator({
     return new Blob([u8arr], { type: mime });
   };
 
-  // ========== 修改后的导出PSD函数 ==========
+  // ========== 修改后的导出PSD函数（增加安全访问） ==========
   const handleExportPSD = async (imageUrl: string) => {
     const ADMIN_PHONE = '13929767725';
     const isAdmin = session?.user?.phone === ADMIN_PHONE;
@@ -573,11 +573,15 @@ export default function ImageGenerator({
         setCredits(data.credits);
       }
 
+      // 安全获取背景图
+      if (!data.baseImage) {
+        throw new Error('未获取到背景图');
+      }
+
       // 下载背景图
       const baseRes = await fetch(data.baseImage);
       if (!baseRes.ok) throw new Error('下载背景图失败');
       const baseBlob = await baseRes.blob();
-      const baseBuffer = await baseRes.arrayBuffer();
 
       const zip = new JSZip();
       // 添加背景图层
@@ -593,9 +597,10 @@ export default function ImageGenerator({
       const imgWidth = img.width || 1920;
       const imgHeight = img.height || 1080;
 
-      // 为每个文本块生成透明 PNG 图层
-      for (let i = 0; i < data.textBlocks.length; i++) {
-        const block = data.textBlocks[i];
+      // ✅ 安全获取文本块数组
+      const textBlocks = data.textBlocks || [];
+      for (let i = 0; i < textBlocks.length; i++) {
+        const block = textBlocks[i];
         if (!block.bbox) continue;
         const { x, y, width, height } = block.bbox;
 
