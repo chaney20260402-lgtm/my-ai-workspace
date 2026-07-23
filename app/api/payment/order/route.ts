@@ -13,7 +13,7 @@ const PLANS: Record<string, PlanConfig> = {
   // --- 原有套餐（补充 membershipType）---
   plan_basic: {
     name: '体验会员',
-    price: 0,
+    price: 9.9,
     credits: 100,
     membershipType: null,
   },
