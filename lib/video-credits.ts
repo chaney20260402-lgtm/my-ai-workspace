@@ -8,6 +8,10 @@ export const VIDEO_RATES = {
     imagePerImage: 1,
     videoPerSecond: { '480p': 8, '720p': 14, '1080p': 17.5 },
   },
+  'kling': {
+    imagePerImage: 1,      // 如有图生视频，消耗积分
+    videoPerSecond: { '480p': 2, '720p': 4, '1080p': 6 }, // 示例定价
+  },
 };
 
 export function getVideoRates(model: string) {

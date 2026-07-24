@@ -59,46 +59,16 @@ const VIDEO_MODELS = [
     resolutions: ['480p', '720p', '1080p'],
     description: 'xAI 最新视频模型',
   },
-  { 
-    value: 'wan2.7', 
-    label: 'Wan2.7 视频生成', 
-    durations: [4, 6, 8, 10, 12], 
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    maxDuration: 12,
-    resolutions: ['480p', '720p', '1080p'],
-    description: '阿里云万象，支持文生/图生/参考生，音频驱动',
-    provider: 'apiyi',
-  },
-  { 
-    value: 'veo-3.1-official', 
-    label: 'VEO 3.1 官转', 
-    durations: [4, 6, 8], 
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    maxDuration: 8,
-    resolutions: ['480p', '720p', '1080p'],
-    description: 'Google AI Studio 官方端点，声画同步，支持真人',
-    provider: 'apiyi',
-  },
-  { 
-    value: 'happyhorse-1.0', 
-    label: 'HappyHorse 1.0', 
-    durations: [4, 6, 8, 10, 12], 
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    maxDuration: 12,
-    resolutions: ['480p', '720p', '1080p'],
-    description: '阿里云，多参考图主体保持（最多9张）',
-    provider: 'apiyi',
-  },
-  { 
-    value: 'wan2.6', 
-    label: 'Wan2.6 视频生成', 
-    durations: [4, 6, 8, 10, 12], 
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    maxDuration: 12,
-    resolutions: ['480p', '720p', '1080p'],
-    description: '与 Wan2.7 共用端点，含低延迟档',
-    provider: 'apiyi',
-  },
+  {
+  value: 'kling',
+  label: '可灵 AI',
+  durations: [5, 10, 15],
+  aspectRatios: ['16:9', '9:16', '1:1'],
+  maxDuration: 15,
+  resolutions: ['480p', '720p', '1080p'],
+  description: '快手可灵视频生成，支持图生/文生',
+  provider: 'kling',
+},
 ];
 
 const ALL_DURATIONS = [4, 5, 6, 8, 10, 12, 15];
@@ -639,8 +609,11 @@ export default function VideoCanvas() {
     setProcessing(true);
     try {
       const isGrok = selectedModel.startsWith('grok');
-      const apiEndpoint = isGrok ? '/api/video/grok' : '/api/video/generate';
-
+      const isKling = selectedModel === 'kling';
+      const apiEndpoint = isGrok ? '/api/video/grok' 
+                  : isKling ? '/api/video/kling' 
+                  : '/api/video/generate';
+      
       setNodes((nds) =>
         nds.map((node) =>
           node.id === targetNode.id ? { ...node, data: { ...node.data, status: 'processing' } } : node
