@@ -6,10 +6,6 @@ import { prisma } from '@/lib/prisma';
 const MODEL_CONFIGS: Record<string, { cost: number; modelName: string; maxDuration: number }> = {
   'veo-3.1-generate-preview': { cost: 30, modelName: 'veo-3.1-generate-preview', maxDuration: 8 },
   'veo-3.1-fast-generate-preview': { cost: 20, modelName: 'veo-3.1-fast-generate-preview', maxDuration: 8 },
-  'wan2.7': { cost: 35, modelName: 'wan2.7', maxDuration: 12 },
-  'veo-3.1-official': { cost: 40, modelName: 'veo-3.1-official', maxDuration: 8 },
-  'happyhorse-1.0': { cost: 35, modelName: 'happyhorse-1.0', maxDuration: 12 },
-  'wan2.6': { cost: 30, modelName: 'wan2.6', maxDuration: 12 },
 };
 
 export async function POST(request: Request) {

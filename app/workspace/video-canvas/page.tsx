@@ -223,7 +223,7 @@ export default function VideoCanvas() {
   // ============================================================
   // 顶部工具栏配置状态（用户可见）
   // ============================================================
-  const [selectedModel, setSelectedModel] = useState<string>('veo-3.1-official');
+  const [selectedModel, setSelectedModel] = useState<string>('grok-imagine-video');
   const [selectedDuration, setSelectedDuration] = useState<number>(8);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('16:9');
   const [selectedResolution, setSelectedResolution] = useState<string>('720p');
@@ -667,10 +667,12 @@ export default function VideoCanvas() {
       message.info(`任务已提交，ID: ${generationId}`);
 
       if (isGrok) {
-        await pollGrokResult(generationId, targetNode.id, targetNode.position);
-      } else {
-        await pollVideoResult(generationId, targetNode.id, targetNode.position);
-      }
+  await pollGrokResult(generationId, targetNode.id, targetNode.position);
+} else if (isKling) {
+  await pollKlingResult(generationId, targetNode.id, targetNode.position);
+} else {
+  await pollVideoResult(generationId, targetNode.id, targetNode.position);
+}
 
     } catch (error: any) {
       console.error('❌ 执行工作流失败:', error);
@@ -891,6 +893,104 @@ export default function VideoCanvas() {
     await poll();
   };
 
+  // pollKlingResult（可灵轮询）
+// ============================================================
+const pollKlingResult = async (generationId: string, nodeId: string, targetPos: { x: number; y: number }) => {
+  let attempts = 0;
+  const maxAttempts = 60;
+
+  const poll = async () => {
+    attempts++;
+    console.log(`🔵 可灵轮询第 ${attempts} 次，generationId: ${generationId}`);
+
+    try {
+      const res = await fetch(`/api/video/kling/status?generationId=${generationId}`);
+      const data = await res.json();
+
+      console.log(`📥 可灵轮询响应 (第 ${attempts} 次):`, JSON.stringify(data, null, 2));
+
+      if (data.status === 'completed' || data.status === 'succeeded') {
+        const videoUrl = data.videoUrl || data.video_url || null;
+        if (videoUrl) {
+          if (data.credits !== undefined) {
+            setCredits(data.credits);
+          }
+          // 更新生成节点
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { ...node, data: { ...node.data, status: 'completed', videoUrl: videoUrl } }
+                : node
+            )
+          );
+          // 创建预览节点并添加边
+          const previewNodeId = `preview-${Date.now()}`;
+          const previewNode: Node = {
+            id: previewNodeId,
+            type: 'videoPreview',
+            position: { x: targetPos.x + 200, y: targetPos.y + 50 },
+            data: { videoUrl: videoUrl },
+          };
+          setNodes((nds) => nds.concat(previewNode));
+          const newEdge: Edge = {
+            id: `edge-${nodeId}-${previewNodeId}`,
+            source: nodeId,
+            target: previewNodeId,
+            animated: true,
+          };
+          setEdges((eds) => eds.concat(newEdge));
+          message.success('🎬 可灵视频生成成功！');
+          console.log(`✅ 可灵视频 URL: ${videoUrl}`);
+          return;
+        } else {
+          console.warn('⚠️ 可灵状态为 completed 但 videoUrl 为空');
+          message.warning('视频生成完成，但未获取到视频链接');
+          return;
+        }
+      }
+
+      if (data.status === 'processing' || data.status === 'queued' || data.status === 'in_progress') {
+        if (attempts < maxAttempts) {
+          console.log(`⏳ 可灵视频生成中 (${data.progress || 0}%)，5秒后继续...`);
+          setTimeout(poll, 5000);
+        } else {
+          message.error('可灵生成超时，请稍后刷新查看');
+        }
+        return;
+      }
+
+      if (data.status === 'failed' || data.status === 'expired') {
+        const errorMsg = data.error || '可灵视频生成失败';
+        console.error(`❌ 可灵生成失败: ${errorMsg}`);
+        message.error(errorMsg);
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
+          )
+        );
+        return;
+      }
+
+      if (attempts < maxAttempts) {
+        console.log(`⏳ 可灵未知状态 (${data.status})，继续轮询...`);
+        setTimeout(poll, 5000);
+      } else {
+        message.error('可灵生成超时');
+      }
+
+    } catch (error: any) {
+      console.error('❌ 可灵轮询错误:', error);
+      message.error(error.message || '轮询失败');
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId ? { ...node, data: { ...node.data, status: 'failed' } } : node
+        )
+      );
+    }
+  };
+
+  await poll();
+};
   const onDrawerClose = () => {
     setDrawerOpen(false);
   };
