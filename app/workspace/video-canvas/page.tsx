@@ -41,6 +41,7 @@ const { Option } = Select;
 // 模型配置
 // ============================================================
 const VIDEO_MODELS = [
+  // Grok 模型（保留）
   { 
     value: 'grok-imagine-video', 
     label: 'Grok Imagine', 
@@ -59,16 +60,67 @@ const VIDEO_MODELS = [
     resolutions: ['480p', '720p', '1080p'],
     description: 'xAI 最新视频模型',
   },
+  // Kling 3.0 系列（新增）
   {
-  value: 'kling',
-  label: '可灵 AI',
-  durations: [5, 10, 15],
-  aspectRatios: ['16:9', '9:16', '1:1'],
-  maxDuration: 15,
-  resolutions: ['480p', '720p', '1080p'],
-  description: '快手可灵视频生成，支持图生/文生',
-  provider: 'kling',
-},
+    value: 'kling-turbo',
+    label: 'Kling 3.0 Turbo',
+    durations: [5, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 15,
+    resolutions: ['720p', '1080p'],
+    description: '可灵 Turbo 版，速度快',
+    provider: 'kling',
+  },
+  {
+    value: 'kling-silent',
+    label: 'Kling 3.0 无声',
+    durations: [5, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 15,
+    resolutions: ['720p', '1080p', '4K'],
+    description: '可灵 无声版',
+    provider: 'kling',
+  },
+  {
+    value: 'kling-silent-audio',
+    label: 'Kling 3.0 有声 (未指定音色)',
+    durations: [5, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 15,
+    resolutions: ['720p', '1080p'],
+    description: '可灵 有声版',
+    provider: 'kling',
+  },
+  {
+    value: 'kling-omni-silent',
+    label: 'Kling 3.0 Omni 无参考视频 x 无声',
+    durations: [5, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 15,
+    resolutions: ['720p', '1080p', '4K'],
+    description: '可灵 Omni 无声版 (无参考视频)',
+    provider: 'kling',
+  },
+  {
+    value: 'kling-omni-silent-audio',
+    label: 'Kling 3.0 Omni 无参考视频 x 有声',
+    durations: [5, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 15,
+    resolutions: ['720p', '1080p', '4K'],
+    description: '可灵 Omni 有声版 (无参考视频)',
+    provider: 'kling',
+  },
+  {
+    value: 'kling-omni-ref-video-silent',
+    label: 'Kling 3.0 Omni 有参考视频 x 无声',
+    durations: [5, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    maxDuration: 15,
+    resolutions: ['720p', '1080p', '4K'],
+    description: '可灵 Omni 有声版 (有参考视频)',
+    provider: 'kling',
+  },
 ];
 
 const ALL_DURATIONS = [4, 5, 6, 8, 10, 12, 15];

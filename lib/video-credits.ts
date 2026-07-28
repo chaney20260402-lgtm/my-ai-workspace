@@ -8,9 +8,29 @@ export const VIDEO_RATES = {
     imagePerImage: 1,
     videoPerSecond: { '480p': 8, '720p': 14, '1080p': 17.5 },
   },
-  'kling': {
-    imagePerImage: 1,      // 如有图生视频，消耗积分
-    videoPerSecond: { '480p': 2, '720p': 4, '1080p': 6 }, // 示例定价
+ 'kling-turbo': {
+    imagePerImage: 0,
+    videoPerSecond: { '720p': 10, '1080p': 12 },
+  },
+  'kling-silent': {
+    imagePerImage: 0,
+    videoPerSecond: { '720p': 8, '1080p': 10, '4K': 32 },
+  },
+  'kling-silent-audio': {
+    imagePerImage: 0,
+    videoPerSecond: { '720p': 11, '1080p': 14 },
+  },
+  'kling-omni-silent': {
+    imagePerImage: 0,
+    videoPerSecond: { '720p': 8, '1080p': 10, '4K': 32 },
+  },
+  'kling-omni-silent-audio': {
+    imagePerImage: 0,
+    videoPerSecond: { '720p': 10, '1080p': 12, '4K': 32 },
+  },
+  'kling-omni-ref-video-silent': {
+    imagePerImage: 0,
+    videoPerSecond: { '720p': 11, '1080p': 14, '4K': 32 },
   },
 };
 
