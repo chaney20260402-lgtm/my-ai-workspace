@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { put } from '@vercel/blob';
 import { useSession } from 'next-auth/react';
 
+
 const { TextArea } = Input;
 
 interface ImageGeneratorProps {
@@ -218,7 +219,8 @@ export default function ImageGenerator({
   onReferenceImagesChange,
   membershipType = 'experience',
 }: ImageGeneratorProps) {
-  const { setCredits } = useCredits();
+  const { credits, setCredits } = useCredits();
+  const COST_PER_IMAGE = 8; // 每张图片消耗 8 积分
   const router = useRouter();
   const { data: session } = useSession();
   const [model, setModel] = useState(initialModel);
@@ -354,6 +356,20 @@ export default function ImageGenerator({
       message.warning('请至少填写一个提示词');
       return;
     }
+    // ✅ 积分预检
+  const totalCost = validPrompts.length * COST_PER_IMAGE;
+  if (credits !== null && credits < totalCost) {
+    Modal.confirm({
+      title: '积分不足',
+      content: `生成 ${validPrompts.length} 张图片需要 ${totalCost} 积分，当前积分 ${credits}，请充值后再试。`,
+      okText: '去充值',
+      cancelText: '取消',
+      onOk: () => {
+        router.push('/workspace/pricing');
+      },
+    });
+    return;
+  }
     setProgressTitle('正在生成图片...');
     setProgressVisible(true);
     setLoading(true);
@@ -834,10 +850,16 @@ export default function ImageGenerator({
         ))}
       </div>
 
-      <Button type="primary" onClick={handleGenerateAll} loading={loading} style={{ width: 160 }}>
-        一键生成 {prompts.filter(p => p.trim().length > 0).length} 张
-      </Button>
-      {loading && <Spin tip="生成中，请稍候..." style={{ marginLeft: '12px' }} />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+  <Button type="primary" onClick={handleGenerateAll} loading={loading} style={{ width: 160 }}>
+    一键生成 {prompts.filter(p => p.trim().length > 0).length} 张
+  </Button>
+  {loading && <Spin tip="生成中，请稍候..." style={{ marginLeft: '12px' }} />}
+  <span style={{ color: '#999', fontSize: 14 }}>
+    当前积分：<strong style={{ color: '#1677ff' }}>{credits !== null ? credits : '...'}</strong>
+    ，生成一张消耗 <strong style={{ color: '#faad14' }}>{COST_PER_IMAGE}</strong> 积分
+  </span>
+</div>
 
       {generatedImages.length > 0 && (
         <div style={{ marginTop: 24 }}>
