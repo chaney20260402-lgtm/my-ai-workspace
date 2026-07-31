@@ -157,7 +157,7 @@ const modelConfigs: Record<string, any> = {
         input: input,
         response_format: {
           type: 'image',
-          mime_type: 'image/png',
+          mime_type: 'image/jpeg', // ✅ 改为 jpeg
         },
       };
     },
@@ -205,7 +205,7 @@ const modelConfigs: Record<string, any> = {
         input: input,
         response_format: {
           type: 'image',
-          mime_type: 'image/png',
+          mime_type: 'image/jpeg', // ✅ 改为 jpeg
         },
       };
     },
