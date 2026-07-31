@@ -92,6 +92,7 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   'nanobanana-pro': {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const parts: any[] = [];
       const finalPrompt = referenceImages && referenceImages.length > 0
@@ -131,41 +132,48 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   // 2. nano-banana（Gemini 格式，支持参考图）
   // ============================================================
-  'nano-banana': {
-    endpoint: 'https://api.apiyi.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent',
+ 'nano-banana': {
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/interactions',
+    authType: 'api-key',   // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
-      const parts: any[] = [];
-      const finalPrompt = referenceImages && referenceImages.length > 0
-        ? prompt
-        : `生成一张图片：${prompt}`;
-      parts.push({ text: finalPrompt });
-
+      const input: any[] = [];
+      
       if (referenceImages && referenceImages.length > 0) {
         for (const imgData of referenceImages) {
           const base64 = imgData.split(',')[1] || imgData;
-          parts.push({
-            inline_data: {
-              mime_type: 'image/png',
-              data: base64,
-            },
+          input.push({
+            type: 'image',
+            data: base64,
+            mime_type: 'image/png',
           });
         }
+        input.push({ type: 'text', text: prompt });
+      } else {
+        input.push({ type: 'text', text: prompt });
       }
+
       return {
-        contents: [{ parts }],
-        generationConfig: {
-          responseModalities: ['IMAGE'],
-          imageConfig: {
-            imageSize: size || '2K',
-            aspectRatio: aspectRatio || '1:1',
-          },
+        model: 'gemini-3.1-flash-image', // 同样使用图片生成模型
+        input: input,
+        response_format: {
+          type: 'image',
+          mime_type: 'image/png',
         },
       };
     },
     extractImage: (data: any) => {
-      const parts = data.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
-      return imagePart ? `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` : null;
+      const steps = data.steps || [];
+      for (const step of steps) {
+        if (step.type === 'model_output') {
+          const content = step.content || [];
+          for (const block of content) {
+            if (block.type === 'image' && block.data) {
+              return `data:${block.mime_type || 'image/png'};base64,${block.data}`;
+            }
+          }
+        }
+      }
+      return null;
     },
   },
 
@@ -173,48 +181,55 @@ const modelConfigs: Record<string, any> = {
   // 3. nano-banana-2（Gemini 格式，支持参考图）
   // ============================================================
   'nano-banana-2': {
-    endpoint: 'https://api.apiyi.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/interactions',
+    authType: 'api-key',   // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
-      const parts: any[] = [];
-      const finalPrompt = referenceImages && referenceImages.length > 0
-        ? prompt
-        : `生成一张图片：${prompt}`;
-      parts.push({ text: finalPrompt });
-
+      const input: any[] = [];
+      
       if (referenceImages && referenceImages.length > 0) {
         for (const imgData of referenceImages) {
           const base64 = imgData.split(',')[1] || imgData;
-          parts.push({
-            inline_data: {
-              mime_type: 'image/png',
-              data: base64,
-            },
+          input.push({
+            type: 'image',
+            data: base64,
+            mime_type: 'image/png',
           });
         }
+        input.push({ type: 'text', text: prompt });
+      } else {
+        input.push({ type: 'text', text: prompt });
       }
+
       return {
-        contents: [{ parts }],
-        generationConfig: {
-          responseModalities: ['IMAGE'],
-          imageConfig: {
-            imageSize: size || '2K',
-            aspectRatio: aspectRatio || '1:1',
-          },
+        model: 'gemini-3.1-flash-image',
+        input: input,
+        response_format: {
+          type: 'image',
+          mime_type: 'image/png',
         },
       };
     },
     extractImage: (data: any) => {
-      const parts = data.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
-      return imagePart ? `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` : null;
+      const steps = data.steps || [];
+      for (const step of steps) {
+        if (step.type === 'model_output') {
+          const content = step.content || [];
+          for (const block of content) {
+            if (block.type === 'image' && block.data) {
+              return `data:${block.mime_type || 'image/png'};base64,${block.data}`;
+            }
+          }
+        }
+      }
+      return null;
     },
   },
-
   // ============================================================
   // 4. gemini-3-pro-image-preview（Gemini 格式，支持参考图）
   // ============================================================
   'gemini-3-pro-image-preview': {
     endpoint: 'https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const parts: any[] = [];
       const finalPrompt = referenceImages && referenceImages.length > 0
@@ -256,6 +271,7 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   'gpt-image-2': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
@@ -280,6 +296,7 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   'gpt-image-2-all': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
@@ -299,6 +316,7 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   'seedream-5-0-260128': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
@@ -319,6 +337,7 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   'flux-2-pro': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
@@ -339,6 +358,7 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   'flux-2-max': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
@@ -359,6 +379,7 @@ const modelConfigs: Record<string, any> = {
   // ============================================================
   'flux-2-flex': {
     endpoint: 'https://api.apiyi.com/v1/images/generations',
+    authType: 'bearer',    // 新增
     buildPayload: (prompt: string, size: string, aspectRatio: string, referenceImages?: string[]) => {
       const finalPrompt = referenceImages && referenceImages.length > 0
         ? prompt
@@ -448,16 +469,40 @@ export async function POST(request: Request) {
     let apiError: any = null;
 
     try {
-      console.log(`📤 请求 Payload:`, JSON.stringify(payload, null, 2));
-      const response = await fetch(config.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${APIYI_KEY}`,
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
+      // 在 POST 函数中，调用 API 前
+// 在 try 块内，声明 API 密钥变量
+const APIYI_KEY = process.env.APIYI_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+// 构建请求头
+const headers: Record<string, string> = {
+  'Content-Type': 'application/json',
+};
+
+// ✅ 根据模型类型选择认证方式
+if (config.authType === 'api-key') {
+  // 官方 Gemini API（Nanobanana 系列）
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY 未配置');
+  }
+  headers['X-Goog-Api-Key'] = GEMINI_API_KEY;
+} else {
+  // 默认使用 API 易（Bearer Token）
+  if (!APIYI_KEY) {
+    throw new Error('APIYI_KEY 未配置');
+  }
+  headers['Authorization'] = `Bearer ${APIYI_KEY}`;
+}
+
+console.log(`📤 请求 Payload:`, JSON.stringify(payload, null, 2));
+
+const response = await fetch(config.endpoint, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify(payload),
+  signal: controller.signal,
+});
+
 
       clearTimeout(timeoutId);
 
