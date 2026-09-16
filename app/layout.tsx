@@ -23,6 +23,7 @@ import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 import { WorkflowProvider, useWorkflow } from '@/app/contexts/WorkflowContext';
 import { Modal } from 'antd';
 import { VideoCameraOutlined } from '@ant-design/icons';
+import { ChatWidget } from '@/app/workspace/components/ChatWidget';
 
 const { Text } = Typography;
 const ADMIN_PHONE = '13929767725';
@@ -367,6 +368,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <WorkflowProvider>        {/* ✅ 放在这里 */}
               <AntdApp>
                 <LayoutContent>{children}</LayoutContent>
+                <ChatWidget />
               </AntdApp>
             </WorkflowProvider>
           </CreditsProvider>

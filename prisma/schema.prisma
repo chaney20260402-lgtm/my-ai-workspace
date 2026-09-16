@@ -91,3 +91,39 @@ model Workflow {
 
   user            User     @relation(fields: [userPhone], references: [phone], onDelete: Cascade)
 }
+// ============================================================
+// 智能客服模块
+// ============================================================
+model Conversation {
+  id        String   @id @default(cuid())
+  guestId   String?
+  status    String   @default("active") // active / closed / transferred
+  language  String   @default("zh")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  Message[]
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String   // user / assistant / system / human_agent
+  content        String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model KnowledgeBase {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  category  String?
+  language  String   @default("zh")
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([category, enabled])
+}
