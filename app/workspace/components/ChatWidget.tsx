@@ -19,6 +19,7 @@ export function ChatWidget() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const guestIdRef = useRef<string>('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [language, setLanguage] = useState('auto');
 
   useEffect(() => {
     if (!guestIdRef.current) {
@@ -46,6 +47,7 @@ export function ChatWidget() {
           conversationId,
           message: text,
           guestId: guestIdRef.current,
+          language: language === 'auto' ? undefined : language, // ★ 新增
         }),
       });
 
@@ -119,9 +121,30 @@ export function ChatWidget() {
             }}
           >
             <span style={{ fontWeight: 500 }}>智能客服</span>
-            <span style={{ fontSize: 12, opacity: 0.85 }}>AI 驱动</span>
-          </div>
-
+<select
+  value={language}
+  onChange={(e) => setLanguage(e.target.value)}
+  style={{
+    fontSize: 12,
+    padding: '2px 6px',
+    borderRadius: 4,
+    border: 'none',
+    background: 'rgba(255,255,255,0.2)',
+    color: '#fff',
+    cursor: 'pointer',
+    outline: 'none',
+  }}
+>
+  <option value="auto" style={{ color: '#000' }}>自动检测</option>
+  <option value="zh" style={{ color: '#000' }}>中文</option>
+  <option value="en" style={{ color: '#000' }}>English</option>
+  <option value="es" style={{ color: '#000' }}>Español</option>
+  <option value="fr" style={{ color: '#000' }}>Français</option>
+  <option value="ja" style={{ color: '#000' }}>日本語</option>
+  <option value="ar" style={{ color: '#000' }}>العربية</option>
+  <option value="pt" style={{ color: '#000' }}>Português</option>
+</select>
+</div>
           {/* 消息区 */}
           <div
             style={{

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getChatContext, appendChatContext } from '@/lib/chat-context';
 import { searchKnowledgeBase } from '@/lib/knowledge';
 import { callLLM, LLMMessage } from '@/lib/llm';
+import { detectLanguage, translateText } from '@/lib/translate';
 
 const TRANSFER_KEYWORDS = ['转人工', '人工客服', '投诉', 'human', 'agent', '真人'];
 
@@ -15,7 +16,7 @@ const DEFAULT_SYSTEM_PROMPT = `你是一个跨境电商智能客服，请用友�
 
 export async function POST(req: NextRequest) {
   try {
-    const { conversationId, message, guestId } = await req.json();
+    const { conversationId, message, guestId,language } = await req.json();
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: '消息不能为空' }, { status: 400 });
@@ -69,8 +70,28 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const kbResults = await searchKnowledgeBase(message);
+    // ★ 新增：检测买家语言
+    const buyerLang = language || (await detectLanguage(message));
+    console.log('买家语言:', buyerLang);
+
+    // ★ 新增：非中文时，先翻译成中文再给 AI 理解
+    let messageForAI = message;
+    if (buyerLang !== 'zh') {
+      messageForAI = await translateText(message, 'zh');
+      console.log('翻译成中文:', messageForAI);
+    }
+
+    // 更新会话语言（第一次检测到就记住）
+    if (conversation.language !== buyerLang) {
+      conversation = await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { language: buyerLang },
+      });
+    }
+
+    const kbResults = await searchKnowledgeBase(messageForAI);
     const context = await getChatContext(conversation.id);
+
     const kbText = kbResults.length
       ? kbResults.map((r) => `Q: ${r.question}\nA: ${r.answer}`).join('\n\n')
       : '（暂无相关知识库内容）';
@@ -80,7 +101,7 @@ export async function POST(req: NextRequest) {
     const llmMessages: LLMMessage[] = [
       { role: 'system', content: systemPrompt },
       ...context,
-      { role: 'user', content: message },
+      { role: 'user', content: messageForAI },
     ];
 
     let aiReply: string;
@@ -89,6 +110,11 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       console.error('LLM 调用失败:', error);
       aiReply = '抱歉，系统繁忙，请稍后再试或转人工客服。';
+    }
+
+    // ★ 新增：如果买家不是中文，把 AI 回复翻译回买家语言
+    if (buyerLang !== 'zh') {
+      aiReply = await translateText(aiReply, buyerLang);
     }
 
     const aiUncertain = ['我不确定', '我无法回答', '建议您联系人工', '建议转人工'].some((k) =>
